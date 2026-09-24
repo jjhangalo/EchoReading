@@ -103,6 +103,13 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
             })
         }
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setNotificationId(NOTIFICATION_ID)
+                .setChannelId(CHANNEL_ID)
+                .setChannelName(R.string.reading)
+                .build(),
+        )
         val sessionActivity = PendingIntent.getActivity(
             this,
             0,
@@ -111,24 +118,21 @@ class ReaderPlaybackService : MediaSessionService() {
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, player)
+        val builtSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
             .setCallback(Commands())
-            .setMediaButtonPreferences(
-                listOf(
-                    button(CommandButton.ICON_SKIP_BACK_10, ACTION_BACK, getString(R.string.rewind_ten), CommandButton.SLOT_BACK),
-                    button(CommandButton.ICON_SKIP_FORWARD_10, ACTION_FORWARD, getString(R.string.forward_ten), CommandButton.SLOT_FORWARD),
-                    button(CommandButton.ICON_SKIP_BACK, ACTION_RESET, getString(R.string.reset_reading), CommandButton.SLOT_BACK_SECONDARY),
-                    button(CommandButton.ICON_STOP, ACTION_STOP, getString(R.string.stop_reading), CommandButton.SLOT_FORWARD_SECONDARY),
-                ),
-            )
+            .setMediaButtonPreferences(mediaButtons)
             .build()
-        setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setNotificationId(NOTIFICATION_ID)
-                .setChannelId(CHANNEL_ID)
-                .setChannelName(R.string.reading)
-                .build(),
+        session = builtSession
+        addSession(builtSession)
+    }
+
+    private val mediaButtons by lazy {
+        listOf(
+            button(CommandButton.ICON_SKIP_BACK_10, ACTION_BACK, getString(R.string.rewind_ten), CommandButton.SLOT_BACK),
+            button(CommandButton.ICON_SKIP_FORWARD_10, ACTION_FORWARD, getString(R.string.forward_ten), CommandButton.SLOT_FORWARD),
+            button(CommandButton.ICON_SKIP_BACK, ACTION_RESET, getString(R.string.reset_reading), CommandButton.SLOT_BACK_SECONDARY),
+            button(CommandButton.ICON_STOP, ACTION_STOP, getString(R.string.stop_reading), CommandButton.SLOT_FORWARD_SECONDARY),
         )
     }
 
@@ -495,7 +499,10 @@ class ReaderPlaybackService : MediaSessionService() {
         ReaderState.save(this)
         generationId++
         scope.cancel()
-        session?.release()
+        session?.let {
+            removeSession(it)
+            it.release()
+        }
         session = null
         player.release()
         super.onDestroy()
@@ -521,7 +528,16 @@ class ReaderPlaybackService : MediaSessionService() {
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(commands)
                 .setAvailablePlayerCommands(playerCommands)
+                .setCustomLayout(mediaButtons)
                 .build()
+        }
+
+        override fun onPostConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ) {
+            super.onPostConnect(session, controller)
+            session.setCustomLayout(controller, mediaButtons)
         }
 
         override fun onCustomCommand(
