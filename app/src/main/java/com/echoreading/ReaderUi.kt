@@ -1,10 +1,14 @@
 package com.echoreading
 
+import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.media.AudioManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -332,6 +336,10 @@ fun EcoApp() {
 fun ReaderHome() {
     val context = LocalContext.current
     val snapshot by ReaderState.snapshot.collectAsState()
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op callback */ }
 
     var input by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         val draft = context.getSharedPreferences("reading", Context.MODE_PRIVATE)
@@ -731,6 +739,18 @@ fun ReaderHome() {
                                         val active = snapshot.status == ReadingStatus.PLAYING ||
                                             snapshot.status == ReadingStatus.PREPARING ||
                                             snapshot.status == ReadingStatus.PAUSED
+                                        val isPause = active && isPlaying
+
+                                        // Ask for notification permission just-in-time before Play (not on Pause)
+                                        if (!isPause && ContextCompat.checkSelfPermission(
+                                                context, Manifest.permission.POST_NOTIFICATIONS
+                                            ) != PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            notificationPermissionLauncher.launch(
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            )
+                                        }
+
                                         if (!active) {
                                             if (input.text.isNotBlank()) {
                                                 sendCommand(context, ReaderPlaybackService.ACTION_READ, input.text)
@@ -1074,6 +1094,9 @@ fun StitchWaveformPill(isPlaying: Boolean, modifier: Modifier = Modifier) {
 fun ReaderQuickPanel(text: String, onClose: () -> Unit) {
     val context = LocalContext.current
     val snapshot by ReaderState.snapshot.collectAsState()
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op callback */ }
     Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 8.dp) {
         Column(
             Modifier.fillMaxWidth().padding(24.dp),
@@ -1092,6 +1115,14 @@ fun ReaderQuickPanel(text: String, onClose: () -> Unit) {
             StitchStatusVoiceBar(snapshot = snapshot, enabled = snapshot.status == ReadingStatus.IDLE)
             Button(
                 onClick = {
+                    if (ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(
+                            Manifest.permission.POST_NOTIFICATIONS
+                        )
+                    }
                     val sameReading = snapshot.text == text &&
                         snapshot.status == ReadingStatus.IDLE && snapshot.positionMs > 0
                     if (sameReading) sendCommand(context, ReaderPlaybackService.ACTION_PLAY)

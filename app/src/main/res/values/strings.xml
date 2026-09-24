@@ -91,4 +91,10 @@
     <string name="privacy_body">Todos os dados e textos permanecem exclusivamente no armazenamento local do dispositivo. Nenhum dado é enviado para servidores externos.</string>
     <string name="cancel">Cancelar</string>
     <string name="engine_version_info">Eco Leitura Motor v2.0.1 — Sintetizador neural ativo offline com privacidade protegida</string>
+    <!-- Notification controls -->
+    <string name="reading_status_channel">Estado da Leitura</string>
+    <string name="reading_complete_title">Leitura Concluída</string>
+    <string name="reading_complete_body">O texto foi lido na totalidade.</string>
+    <string name="reading_error_title">Erro de Leitura</string>
+    <string name="notification_permission_rationale">Permita notificações para controlar a reprodução fora da app.</string>
 </resources>

@@ -1,6 +1,8 @@
 package com.echoreading.reader
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +10,7 @@ import android.app.PendingIntent
 import android.content.pm.ServiceInfo
 import android.os.Bundle
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -100,7 +103,16 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
             })
         }
+        val sessionActivity = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         session = MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivity)
             .setCallback(Commands())
             .setMediaButtonPreferences(
                 listOf(
@@ -131,7 +143,8 @@ class ReaderPlaybackService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if ((intent?.action == ACTION_READ || intent?.action == ACTION_PLAY) && player.mediaItemCount == 0) {
-            startPreparingForeground()
+            val text = intent.getStringExtra(EXTRA_TEXT).orEmpty().ifBlank { ReaderState.snapshot.value.text }
+            startPreparingForeground(formatTitle(text, getString(R.string.app_name)))
         }
         when (intent?.action) {
             ACTION_READ -> startReading(
@@ -157,22 +170,30 @@ class ReaderPlaybackService : MediaSessionService() {
         return START_NOT_STICKY
     }
 
-    private fun startPreparingForeground() {
+    private fun startPreparingForeground(title: String = getString(R.string.app_name)) {
         val notifications = getSystemService(NotificationManager::class.java)
-        notifications.createNotificationChannel(
+        notifications?.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, getString(R.string.reading), NotificationManager.IMPORTANCE_LOW),
         )
         val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_speak)
-            .setContentTitle(getString(R.string.app_name))
+            .setContentTitle(title)
             .setContentText(getString(R.string.preparing_audio))
             .setContentIntent(open)
             .setOngoing(true)
             .build()
-        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        try {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } catch (_: Exception) {
+        }
     }
 
     private fun startReading(text: String, positionMs: Long, voiceId: String, speed: Float) {
@@ -181,6 +202,7 @@ class ReaderPlaybackService : MediaSessionService() {
             stopSelf()
             return
         }
+        getSystemService(NotificationManager::class.java)?.cancel(STATUS_NOTIFICATION_ID)
         val saveHistory = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("save_history", true)
         if (saveHistory) {
             scope.launch { ReadingHistory.add(this@ReaderPlaybackService, text) }
@@ -206,6 +228,7 @@ class ReaderPlaybackService : MediaSessionService() {
         player.stop()
         player.clearMediaItems()
         timeline.clear()
+        player.playlistMetadata = buildMediaMetadata(text, voiceId)
         chunks = ReadingChunks.split(text)
         completed = false
         wantsPlayback = true
@@ -268,6 +291,7 @@ class ReaderPlaybackService : MediaSessionService() {
         player.stop()
         player.clearMediaItems()
         timeline.clear()
+        player.playlistMetadata = buildMediaMetadata(cached.text, cached.voiceId)
         chunks = cached.chunks
         audioDir = cached.audioDir
         completed = true
@@ -279,12 +303,7 @@ class ReaderPlaybackService : MediaSessionService() {
             MediaItem.Builder()
                 .setMediaId(index.toString())
                 .setUri(file.toURI().toString())
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(getString(R.string.app_name))
-                        .setArtist(OfflineVoice.option(cached.voiceId).label)
-                        .build(),
-                )
+                .setMediaMetadata(buildMediaMetadata(cached.text, cached.voiceId))
                 .build()
         }
         player.addMediaItems(mediaItems)
@@ -327,6 +346,10 @@ class ReaderPlaybackService : MediaSessionService() {
         player.stop()
         player.clearMediaItems()
         ReaderState.save(this)
+        showStatusNotification(
+            getString(R.string.reading_error_title),
+            getString(R.string.reading_error),
+        )
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -339,12 +362,7 @@ class ReaderPlaybackService : MediaSessionService() {
             MediaItem.Builder()
                 .setMediaId(index.toString())
                 .setUri(file.toURI().toString())
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(getString(R.string.app_name))
-                        .setArtist(OfflineVoice.option(ReaderState.snapshot.value.voiceId).label)
-                        .build(),
-                )
+                .setMediaMetadata(buildMediaMetadata())
                 .build(),
         )
         val requested = pendingPosition
@@ -360,6 +378,7 @@ class ReaderPlaybackService : MediaSessionService() {
     }
 
     private fun playReading() {
+        getSystemService(NotificationManager::class.java)?.cancel(STATUS_NOTIFICATION_ID)
         if (timeline.size == 0) {
             val saved = ReaderState.snapshot.value
             if (saved.text.isNotBlank() && generation == null) {
@@ -394,6 +413,7 @@ class ReaderPlaybackService : MediaSessionService() {
     }
 
     private fun resetReading() {
+        getSystemService(NotificationManager::class.java)?.cancel(STATUS_NOTIFICATION_ID)
         wantsPlayback = false
         pendingPosition = null
         player.pause()
@@ -445,6 +465,12 @@ class ReaderPlaybackService : MediaSessionService() {
                 chunks = chunks,
                 durations = timeline.durations(),
                 audioDir = dir,
+            )
+        }
+        if (atEnd) {
+            showStatusNotification(
+                getString(R.string.reading_complete_title),
+                getString(R.string.reading_complete_body),
             )
         }
         generationId++
@@ -509,14 +535,66 @@ class ReaderPlaybackService : MediaSessionService() {
                 ACTION_FORWARD -> moveBy(10_000)
                 ACTION_STOP -> stopReading()
                 ACTION_RESET -> resetReading()
+                else -> return super.onCustomCommand(session, controller, customCommand, args)
             }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
     }
 
+    private fun buildMediaMetadata(
+        text: String = ReaderState.snapshot.value.text,
+        voiceId: String = ReaderState.snapshot.value.voiceId,
+    ): MediaMetadata {
+        val title = formatTitle(text, getString(R.string.app_name))
+        val voiceLabel = OfflineVoice.option(voiceId).label
+        return MediaMetadata.Builder()
+            .setTitle(title)
+            .setDisplayTitle(title)
+            .setArtist(voiceLabel)
+            .build()
+    }
+
+    private fun showStatusNotification(title: String, message: String) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val notifications = getSystemService(NotificationManager::class.java) ?: return
+        notifications.createNotificationChannel(
+            NotificationChannel(
+                STATUS_CHANNEL_ID,
+                getString(R.string.reading_status_channel),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ),
+        )
+        val open = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = Notification.Builder(this, STATUS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_speak)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(Notification.BigTextStyle().bigText(message))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        try {
+            notifications.notify(STATUS_NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+        }
+    }
+
     companion object {
-        private const val NOTIFICATION_ID = 1101
-        private const val CHANNEL_ID = "eco-reading-playback"
+        const val NOTIFICATION_ID = 1101
+        const val STATUS_NOTIFICATION_ID = 1102
+        const val CHANNEL_ID = "eco-reading-playback"
+        const val STATUS_CHANNEL_ID = "eco-reading-status"
         const val EXTRA_TEXT = "text"
         const val EXTRA_POSITION = "position_ms"
         const val EXTRA_VOICE = "voice"
@@ -528,5 +606,11 @@ class ReaderPlaybackService : MediaSessionService() {
         const val ACTION_FORWARD = "com.echoreading.FORWARD_10"
         const val ACTION_STOP = "com.echoreading.STOP"
         const val ACTION_RESET = "com.echoreading.RESET"
+
+        fun formatTitle(text: String, fallback: String): String {
+            val clean = text.replace(Regex("\\s+"), " ").trim()
+            val preview = if (clean.length > 80) clean.take(80) + "…" else clean
+            return preview.ifBlank { fallback }
+        }
     }
 }
