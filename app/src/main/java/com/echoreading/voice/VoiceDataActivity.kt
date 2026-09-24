@@ -1,0 +1,36 @@
+package com.echoreading.voice
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import com.echoreading.MainActivity
+import java.util.Locale
+
+class VoiceDataActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        when (intent.action) {
+            TextToSpeech.Engine.ACTION_CHECK_TTS_DATA -> {
+                setResult(
+                    TextToSpeech.Engine.CHECK_VOICE_DATA_PASS,
+                    Intent().putStringArrayListExtra(
+                        TextToSpeech.Engine.EXTRA_AVAILABLE_VOICES,
+                        ArrayList(OfflineVoice.voices.filter { OfflineVoice.isInstalled(this, it) }.map { voice ->
+                            val locale = Locale.forLanguageTag(voice.id)
+                            "${locale.getISO3Language()}-${locale.getISO3Country()}"
+                        }),
+                    ),
+                )
+            }
+            TextToSpeech.Engine.ACTION_GET_SAMPLE_TEXT -> {
+                setResult(
+                    Activity.RESULT_OK,
+                    Intent().putExtra(TextToSpeech.Engine.EXTRA_SAMPLE_TEXT, "Olá. Estou a ler em voz alta."),
+                )
+            }
+            TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA -> startActivity(Intent(this, MainActivity::class.java))
+        }
+        finish()
+    }
+}
