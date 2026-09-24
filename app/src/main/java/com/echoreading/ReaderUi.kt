@@ -3,6 +3,7 @@ package com.echoreading
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.media.AudioManager
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -76,6 +77,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -170,9 +172,20 @@ val StitchDarkColorScheme = darkColorScheme(
 @Composable
 fun EcoTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-    val themeMode = prefs.getString("theme", "system") ?: "system"
-    val dynamicColors = prefs.getBoolean("dynamic_colors", false)
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    var themeMode by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
+    var dynamicColors by remember { mutableStateOf(prefs.getBoolean("dynamic_colors", false)) }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
+            when (key) {
+                "theme" -> themeMode = sp.getString("theme", "system") ?: "system"
+                "dynamic_colors" -> dynamicColors = sp.getBoolean("dynamic_colors", false)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     val isDark = when (themeMode) {
         "light" -> false
