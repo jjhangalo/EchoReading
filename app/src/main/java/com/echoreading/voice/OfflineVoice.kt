@@ -2,7 +2,6 @@ package com.echoreading.voice
 
 import android.content.Context
 import com.k2fsa.sherpa.onnx.GeneratedAudio
-import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
@@ -100,7 +99,6 @@ object OfflineVoice {
         text: String,
         voiceId: String = "pt-PT",
         speed: Float = 1f,
-        acceptSamples: (FloatArray) -> Boolean = { true },
     ): GeneratedAudio = synchronized(lock) {
         val voice = option(voiceId)
         check(isInstalled(context, voice)) { "Voice not installed: ${voice.id}" }
@@ -112,9 +110,7 @@ object OfflineVoice {
             loadedId = voice.id
         }
         val tts = checkNotNull(engine)
-        tts.generateWithConfigAndCallback(text, GenerationConfig(speed = speed)) {
-            if (acceptSamples(it)) 1 else 0
-        }
+        tts.generate(text, speed = speed)
     }
 
     private fun modelDirectory(context: Context, voice: VoiceOption) =

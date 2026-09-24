@@ -203,9 +203,8 @@ class ReaderPlaybackService : MediaSessionService() {
             try {
                 chunks.forEachIndexed { index, chunk ->
                     if (!isActive || generationId != id) return@launch
-                    val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, voiceId, speed) {
-                        isActive && generationId == id
-                    }
+                    // ponytail: native generation cannot stop mid-chunk; discard it after a stop.
+                    val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, voiceId, speed)
                     if (!isActive || generationId != id) return@launch
                     val file = File(destination, "$index.wav")
                     val duration = WavFiles.write(file, audio)

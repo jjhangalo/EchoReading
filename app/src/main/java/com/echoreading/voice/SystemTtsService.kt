@@ -75,36 +75,30 @@ class SystemTtsService : TextToSpeechService() {
                 }
                 return
             }
-            var started = false
-            var failed = false
-            val audio = OfflineVoice.synthesize(this, text, voiceId, rate) { samples ->
-                if (cancelled.get()) return@synthesize false
-                if (!started) {
-                    if (callback.start(OfflineVoice.option(voiceId).sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) {
-                        failed = true
-                        return@synthesize false
-                    }
-                    started = true
-                }
-                val bytes = ByteArray(samples.size * 2)
-                samples.forEachIndexed { index, value ->
-                    val pcm = (value.coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt()
+            if (cancelled.get()) return
+            // The JNI callback path expects a concrete invoke(float[]) method and can abort the process.
+            val audio = OfflineVoice.synthesize(this, text, voiceId, rate)
+            if (cancelled.get()) return
+            if (callback.start(audio.sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) return
+            val samplesPerBlock = (callback.maxBufferSize / 2).coerceAtMost(4096)
+            if (samplesPerBlock == 0) {
+                callback.error()
+                return
+            }
+            val bytes = ByteArray(samplesPerBlock * 2)
+            var offset = 0
+            while (offset < audio.samples.size) {
+                if (cancelled.get()) return
+                val count = minOf(samplesPerBlock, audio.samples.size - offset)
+                for (index in 0 until count) {
+                    val pcm = (audio.samples[offset + index].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt()
                     bytes[index * 2] = pcm.toByte()
                     bytes[index * 2 + 1] = (pcm ushr 8).toByte()
                 }
-                var offset = 0
-                while (offset < bytes.size && !cancelled.get()) {
-                    val count = minOf(callback.maxBufferSize, bytes.size - offset)
-                    if (callback.audioAvailable(bytes, offset, count) != TextToSpeech.SUCCESS) {
-                        failed = true
-                        return@synthesize false
-                    }
-                    offset += count
-                }
-                !cancelled.get()
+                if (callback.audioAvailable(bytes, 0, count * 2) != TextToSpeech.SUCCESS) return
+                offset += count
             }
-            if (cancelled.get() || failed) return
-            if (!started && callback.start(audio.sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) return
+            if (cancelled.get()) return
             callback.done()
         } catch (_: Exception) {
             if (!cancelled.get()) callback.error()
