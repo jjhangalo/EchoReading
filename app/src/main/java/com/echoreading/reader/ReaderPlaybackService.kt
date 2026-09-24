@@ -54,6 +54,14 @@ class ReaderPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         ReaderState.restore(this)
+        val audioParent = File(cacheDir, "reading-audio")
+        if (audioParent.isDirectory) {
+            audioParent.listFiles()?.forEach { dir ->
+                if (dir.isDirectory && !ReaderAudioCache.isCachedDir(dir)) {
+                    dir.deleteRecursively()
+                }
+            }
+        }
         player = ExoPlayer.Builder(this).build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -177,6 +185,13 @@ class ReaderPlaybackService : MediaSessionService() {
         if (saveHistory) {
             scope.launch { ReadingHistory.add(this@ReaderPlaybackService, text) }
         }
+        val cached = ReaderAudioCache.get(text, voiceId, speed)
+        if (cached != null) {
+            playFromCache(cached, positionMs)
+            return
+        }
+        ReaderAudioCache.clear()
+
         val previous = generation
         val previousDir = audioDir
         generationId++
@@ -184,7 +199,9 @@ class ReaderPlaybackService : MediaSessionService() {
         previous?.cancel()
         scope.launch(Dispatchers.IO) {
             previous?.join()
-            previousDir?.deleteRecursively()
+            if (previousDir != null && !ReaderAudioCache.isCachedDir(previousDir)) {
+                previousDir.deleteRecursively()
+            }
         }
         player.stop()
         player.clearMediaItems()
@@ -235,12 +252,74 @@ class ReaderPlaybackService : MediaSessionService() {
         }
     }
 
+    private fun playFromCache(cached: CachedReading, positionMs: Long) {
+        val previous = generation
+        val previousDir = audioDir
+        generationId++
+        val id = generationId
+        previous?.cancel()
+        generation = null
+        if (previousDir != null && previousDir != cached.audioDir && !ReaderAudioCache.isCachedDir(previousDir)) {
+            scope.launch(Dispatchers.IO) {
+                previous?.join()
+                previousDir.deleteRecursively()
+            }
+        }
+        player.stop()
+        player.clearMediaItems()
+        timeline.clear()
+        chunks = cached.chunks
+        audioDir = cached.audioDir
+        completed = true
+        wantsPlayback = true
+
+        val mediaItems = cached.durations.mapIndexed { index, duration ->
+            timeline.add(duration)
+            val file = File(cached.audioDir, "$index.wav")
+            MediaItem.Builder()
+                .setMediaId(index.toString())
+                .setUri(file.toURI().toString())
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(getString(R.string.app_name))
+                        .setArtist(OfflineVoice.option(cached.voiceId).label)
+                        .build(),
+                )
+                .build()
+        }
+        player.addMediaItems(mediaItems)
+
+        val targetPosition = positionMs.coerceIn(0, timeline.preparedMs)
+        pendingPosition = null
+        val (initialItem, initialLocal) = if (targetPosition > 0) {
+            timeline.locate(targetPosition)
+        } else {
+            0 to 0L
+        }
+        player.seekTo(initialItem, initialLocal)
+
+        ReaderState.snapshot.value = ReaderSnapshot(
+            text = cached.text,
+            status = ReadingStatus.PLAYING,
+            positionMs = targetPosition,
+            durationMs = timeline.preparedMs,
+            characterOffset = chunks.getOrNull(initialItem)?.start ?: 0,
+            voiceId = cached.voiceId,
+            speed = cached.speed,
+        )
+        ReaderState.save(this)
+
+        player.prepare()
+        if (wantsPlayback) player.play()
+    }
+
     private fun failReading(id: Int) {
         if (generationId != id) return
         generationId++
         generation?.cancel()
         generation = null
         wantsPlayback = false
+        ReaderAudioCache.clear()
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
             status = ReadingStatus.ERROR,
             error = getString(R.string.reading_error),
@@ -356,6 +435,18 @@ class ReaderPlaybackService : MediaSessionService() {
 
     private fun stopReading(atEnd: Boolean = false) {
         val position = if (atEnd) 0L else currentPosition()
+        val currentSnapshot = ReaderState.snapshot.value
+        val dir = audioDir
+        if (atEnd && completed && dir != null && chunks.isNotEmpty() && timeline.size == chunks.size) {
+            ReaderAudioCache.put(
+                text = currentSnapshot.text,
+                voiceId = currentSnapshot.voiceId,
+                speed = currentSnapshot.speed,
+                chunks = chunks,
+                durations = timeline.durations(),
+                audioDir = dir,
+            )
+        }
         generationId++
         generation?.cancel()
         generation = null
@@ -364,10 +455,10 @@ class ReaderPlaybackService : MediaSessionService() {
         timeline.clear()
         wantsPlayback = false
         pendingPosition = null
-        ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
+        ReaderState.snapshot.value = currentSnapshot.copy(
             status = ReadingStatus.IDLE,
             positionMs = position,
-            characterOffset = if (atEnd) 0 else ReaderState.snapshot.value.characterOffset,
+            characterOffset = if (atEnd) 0 else currentSnapshot.characterOffset,
         )
         ReaderState.save(this)
         stopForeground(STOP_FOREGROUND_REMOVE)

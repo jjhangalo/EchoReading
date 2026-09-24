@@ -30,6 +30,7 @@ class AudioTimeline {
     val size: Int get() = durations.size
 
     fun clear() = durations.clear()
+    fun durations(): List<Long> = durations.toList()
     fun add(durationMs: Long) { durations += durationMs.coerceAtLeast(0) }
 
     fun globalPosition(item: Int, localMs: Long): Long =

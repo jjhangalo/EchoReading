@@ -95,6 +95,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.echoreading.reader.ReaderAudioCache
 import com.echoreading.reader.ReaderState
 import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.WavFiles
@@ -1537,6 +1538,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                     buttonText = "Ação Imediata",
                     isPrimary = true,
                     onClick = {
+                        ReaderAudioCache.clear()
                         context.cacheDir.deleteRecursively()
                         recalculateSizes()
                         Toast.makeText(context, "Cache de áudio limpa", Toast.LENGTH_SHORT).show()
