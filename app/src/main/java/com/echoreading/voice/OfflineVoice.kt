@@ -132,10 +132,10 @@ object OfflineVoice {
                     else File(modelDirectory(context, voice), voice.modelFile).absolutePath,
                     tokens = if (bundled) "$ASSET_DIR/tokens.txt"
                     else File(context.noBackupFilesDir, "voices/tokens.txt").also { tokens ->
-                        if (!tokens.isFile) {
+                        if (!tokens.isFile || tokens.readText().contains("\r")) {
                             tokens.parentFile?.mkdirs()
-                            context.assets.open("optional-piper-tokens.txt").use { input ->
-                                tokens.outputStream().use { input.copyTo(it) }
+                            context.assets.open("optional-piper-tokens.txt").bufferedReader().use { reader ->
+                                tokens.writeText(reader.readText().replace("\r\n", "\n").replace("\r", "\n"))
                             }
                         }
                     }.absolutePath,

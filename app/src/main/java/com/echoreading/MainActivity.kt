@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.ReaderState
 
 class MainActivity : ComponentActivity() {
@@ -11,6 +12,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReaderState.restore(this)
-        setContent { EcoTheme { ReaderHome() } }
+        ReadingHistory.init(this)
+        setContent { EcoTheme { EcoApp() } }
     }
 }

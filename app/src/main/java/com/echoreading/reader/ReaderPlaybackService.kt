@@ -173,6 +173,10 @@ class ReaderPlaybackService : MediaSessionService() {
             stopSelf()
             return
         }
+        val saveHistory = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("save_history", true)
+        if (saveHistory) {
+            scope.launch { ReadingHistory.add(this@ReaderPlaybackService, text) }
+        }
         val previous = generation
         val previousDir = audioDir
         generationId++
@@ -194,6 +198,7 @@ class ReaderPlaybackService : MediaSessionService() {
             text = text,
             status = ReadingStatus.PREPARING,
             positionMs = positionMs,
+            durationMs = 0,
             voiceId = voiceId,
             speed = speed,
         )
@@ -250,6 +255,7 @@ class ReaderPlaybackService : MediaSessionService() {
     private fun addAudio(id: Int, index: Int, file: File, durationMs: Long) {
         if (generationId != id) return
         timeline.add(durationMs)
+        ReaderState.snapshot.value = ReaderState.snapshot.value.copy(durationMs = timeline.preparedMs)
         player.addMediaItem(
             MediaItem.Builder()
                 .setMediaId(index.toString())

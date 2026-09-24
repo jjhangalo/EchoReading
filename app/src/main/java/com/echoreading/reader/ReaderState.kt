@@ -9,6 +9,7 @@ data class ReaderSnapshot(
     val text: String = "",
     val status: ReadingStatus = ReadingStatus.IDLE,
     val positionMs: Long = 0,
+    val durationMs: Long = 0,
     val characterOffset: Int = 0,
     val voiceId: String = "pt-PT",
     val speed: Float = 1f,

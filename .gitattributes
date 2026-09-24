@@ -1,0 +1,5 @@
+# Enforce LF on all text and model files
+* text=auto eol=lf
+*.txt text eol=lf
+*.onnx binary
+*.so binary

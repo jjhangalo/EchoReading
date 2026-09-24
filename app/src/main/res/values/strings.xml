@@ -18,4 +18,77 @@
     <string name="preparing_audio">A preparar áudio…</string>
     <string name="reading_error">Não foi possível preparar a leitura.</string>
     <string name="offline_voice">Voz offline incluída</string>
+
+    <!-- Navigation tabs -->
+    <string name="tab_home">Início</string>
+    <string name="tab_history">Histórico</string>
+    <string name="tab_settings">Definições</string>
+
+    <!-- Home screen enhancements -->
+    <string name="paste_text">Colar</string>
+    <string name="clear_text">Limpar</string>
+    <string name="reproducer_title">Reprodutor de Voz</string>
+    <string name="stats_format">%1$d palavras · %2$d caracteres · ~%3$dm%4$02ds</string>
+    <string name="tts_engine_active">Motor TTS Ativo</string>
+    <string name="voice_synthetic">Voz Sintética</string>
+
+    <!-- History screen -->
+    <string name="history_count">%d textos gravados localmente</string>
+    <string name="history_count_filtered">%1$d de %2$d textos encontrados</string>
+    <string name="history_banner_tip">Toque num item para carregar o texto no reprodutor</string>
+    <string name="search_hint">Pesquisar nos textos…</string>
+    <string name="filter_all">Todos</string>
+    <string name="filter_short">Curtos</string>
+    <string name="filter_long">Longos</string>
+    <string name="filter_favorites">Favoritos</string>
+    <string name="keep_saved">Manter guardado</string>
+    <string name="remove_favorite">Remover dos favoritos</string>
+    <string name="copy_text">Copiar texto</string>
+    <string name="text_copied">Texto copiado para a área de transferência</string>
+    <string name="delete_entry">Eliminar</string>
+    <string name="load_to_reader">Carregar no Leitor</string>
+    <string name="see_more">Ver mais</string>
+    <string name="see_less">Ver menos</string>
+    <string name="clear_history">Limpar Todo o Histórico</string>
+    <string name="clear_confirm_title">Limpar histórico?</string>
+    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os mantidos como favoritos.</string>
+    <string name="empty_history">Nenhum texto encontrado</string>
+    <string name="date_filter_title">Filtrar por Data</string>
+    <string name="date_mode_single">Dia único</string>
+    <string name="date_mode_range">Intervalo</string>
+    <string name="date_select_day">Selecionar dia</string>
+    <string name="date_start">Data inicial</string>
+    <string name="date_end">Data final</string>
+    <string name="date_today">Hoje</string>
+    <string name="apply_filter">Aplicar</string>
+    <string name="clear_filter">Limpar</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Configurações Gerais</string>
+    <string name="settings_subtitle">Personalize o sintetizador, interface e armazenamento</string>
+    <string name="settings_theme">Personalização</string>
+    <string name="settings_theme_sub">Gestão de tema claro/escuro e cores dinâmicas do sistema</string>
+    <string name="settings_voice">Voz</string>
+    <string name="settings_voice_sub">Vozes neurais, downloads de pacotes de fala e velocidade</string>
+    <string name="settings_storage">Armazenamento e Privacidade</string>
+    <string name="settings_storage_sub">Gestão de dados locais, resumo de armazenamento e limpeza</string>
+    <string name="theme_mode">Modo do Tema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="theme_system">Sistema</string>
+    <string name="dynamic_colors">Cores dinâmicas (Material You)</string>
+    <string name="dynamic_colors_sub">Harmonizar a paleta com o fundo do seu ecrã inicial Android</string>
+    <string name="voices_on_device">No Dispositivo</string>
+    <string name="voices_installed_count">%1$d vozes • %2$s MB</string>
+    <string name="download_available">Disponível para Transferência</string>
+    <string name="voice_speed_tuning">Afinação de Velocidade</string>
+    <string name="delete_downloaded_voices">Eliminar vozes transferidas</string>
+    <string name="delete_saved_texts">Eliminar textos salvos (excepto favoritos)</string>
+    <string name="delete_cache">Eliminar cache de áudio</string>
+    <string name="save_history_toggle">Guardar Histórico de Leituras</string>
+    <string name="save_history_sub">Salvar textos automaticamente no armazenamento local para reutilização</string>
+    <string name="privacy_title">Privacidade Local e Sem Rastreio</string>
+    <string name="privacy_body">Todos os dados e textos permanecem exclusivamente no armazenamento local do dispositivo. Nenhum dado é enviado para servidores externos.</string>
+    <string name="cancel">Cancelar</string>
+    <string name="engine_version_info">Eco Leitura Motor v2.0.1 — Sintetizador neural ativo offline com privacidade protegida</string>
 </resources>
