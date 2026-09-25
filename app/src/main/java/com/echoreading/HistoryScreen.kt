@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -163,251 +162,221 @@ fun HistoryScreen(navController: NavController) {
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxSize()
     ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Stitch Info Banner & Metric Header
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                ),
-            ) {
-                Row(
-                    Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.TouchApp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Toque num item para carregar o texto na página inicial pronto para reprodução.",
-                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape)
-                            )
-                            Text(
-                                if (searchQuery.isNotBlank() || activeFilter != "all" || dateFrom != null) {
-                                    "$matchingCount de $totalCount textos encontrados"
-                                } else {
-                                    "$totalCount textos gravados localmente"
-                                },
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
             // Stitch Search Bar: Rounded Pill Container
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                shadowElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item(key = "search_bar") {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextField(
-                        value = searchFlow.value,
-                        onValueChange = { searchFlow.value = it },
-                        placeholder = {
-                            Text(
-                                "Procurar nos textos gravados...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                        ),
-                    )
-                    if (searchFlow.value.isNotBlank()) {
-                        IconButton(onClick = { searchFlow.value = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Limpar", Modifier.size(18.dp))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        TextField(
+                            value = searchFlow.value,
+                            onValueChange = { searchFlow.value = it },
+                            placeholder = {
+                                Text(
+                                    "Procurar nos textos gravados...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                        )
+                        if (searchFlow.value.isNotBlank()) {
+                            IconButton(onClick = { searchFlow.value = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpar", Modifier.size(18.dp))
+                            }
                         }
                     }
                 }
             }
 
             // Stitch Collapsible "Filtrar por data" Card
-            StitchDateFilterCard(
-                expanded = showDateFilter,
-                onToggle = { showDateFilter = !showDateFilter },
-                dateMode = dateMode,
-                onDateModeChange = { dateMode = it },
-                dateFrom = dateFrom,
-                dateTo = dateTo,
-                onDateFromChange = { dateFrom = it },
-                onDateToChange = { dateTo = it },
-                onApply = { scope.launch { queryDb() } },
-                onClear = {
-                    dateFrom = null
-                    dateTo = null
-                    dateMode = "none"
-                    scope.launch { queryDb() }
-                },
-            )
+            item(key = "date_filter") {
+                StitchDateFilterCard(
+                    expanded = showDateFilter,
+                    onToggle = { showDateFilter = !showDateFilter },
+                    dateMode = dateMode,
+                    onDateModeChange = { dateMode = it },
+                    dateFrom = dateFrom,
+                    dateTo = dateTo,
+                    onDateFromChange = { dateFrom = it },
+                    onDateToChange = { dateTo = it },
+                    onApply = { scope.launch { queryDb() } },
+                    onClear = {
+                        dateFrom = null
+                        dateTo = null
+                        dateMode = "none"
+                        scope.launch { queryDb() }
+                    },
+                )
+            }
 
             // Stitch Filter Chips (Todos / Curtos / Longos / Favoritos)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val chips = listOf(
-                    Triple("all", "Todos", Icons.Default.ViewHeadline),
-                    Triple("short", "Curtos", Icons.Default.AccessTime),
-                    Triple("long", "Longos", Icons.AutoMirrored.Filled.MenuBook),
-                    Triple("favorites", "Favoritos", Icons.Default.Bookmark),
-                )
+            item(key = "filter_chips") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val chips = listOf(
+                        Triple("all", "Todos", Icons.Default.ViewHeadline),
+                        Triple("short", "Curtos", Icons.Default.AccessTime),
+                        Triple("long", "Longos", Icons.AutoMirrored.Filled.MenuBook),
+                        Triple("favorites", "Favoritos", Icons.Default.Bookmark),
+                    )
 
-                chips.forEach { (key, label, icon) ->
-                    val isSelected = activeFilter == key
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shadowElevation = if (isSelected) 1.dp else 0.dp,
-                        modifier = Modifier.clickable { activeFilter = key }
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    chips.forEach { (key, label, icon) ->
+                        val isSelected = activeFilter == key
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shadowElevation = if (isSelected) 1.dp else 0.dp,
+                            modifier = Modifier.clickable { activeFilter = key }
                         ) {
-                            Icon(
-                                icon,
-                                contentDescription = null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                label,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
+                    }
+                }
+            }
+
+            // Items count info
+            if (totalCount > 0) {
+                item(key = "count_info") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                        Text(
+                            if (searchQuery.isNotBlank() || activeFilter != "all" || dateFrom != null) {
+                                "$matchingCount de $totalCount textos encontrados"
+                            } else {
+                                "$totalCount textos gravados localmente"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
 
             // History Items List or Empty State
             if (entries.isEmpty() && !isLoading) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.SearchOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Nenhum texto encontrado",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                item(key = "empty_state") {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp, horizontal = 16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.SearchOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Nenhum texto encontrado",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                ) {
-                    items(entries, key = { it.id }) { entry ->
-                        StitchHistoryCard(
-                            entry = entry,
-                            onLoadToReader = {
-                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(text = entry.text)
-                                context.getSharedPreferences("reading", Context.MODE_PRIVATE)
-                                    .edit()
-                                    .putString("draft", entry.text)
-                                    .apply()
-                                navController.navigate("home") {
-                                    popUpTo("home") { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            },
-                            onToggleFavorite = {
-                                scope.launch {
-                                    ReadingHistory.toggleFavorite(entry.id)
-                                    queryDb()
-                                }
-                            },
-                            onDelete = {
-                                scope.launch {
-                                    ReadingHistory.delete(entry.id)
-                                    queryDb()
-                                }
-                            },
-                            onCopy = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("text", entry.text))
-                                Toast.makeText(context, "Texto copiado para a área de transferência", Toast.LENGTH_SHORT).show()
-                            },
-                        )
-                    }
-
-                    if (hasMore) {
-                        item {
-                            LaunchedEffect(Unit) { queryDb(append = true) }
-                            Box(
-                                Modifier.fillMaxWidth().padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(Modifier.size(24.dp))
+                items(entries, key = { it.id }) { entry ->
+                    StitchHistoryCard(
+                        entry = entry,
+                        onLoadToReader = {
+                            ReaderState.snapshot.value = ReaderState.snapshot.value.copy(text = entry.text)
+                            context.getSharedPreferences("reading", Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("draft", entry.text)
+                                .apply()
+                            navController.navigate("home") {
+                                popUpTo("home") { inclusive = true }
+                                launchSingleTop = true
                             }
+                        },
+                        onToggleFavorite = {
+                            scope.launch {
+                                ReadingHistory.toggleFavorite(entry.id)
+                                queryDb()
+                            }
+                        },
+                        onDelete = {
+                            scope.launch {
+                                ReadingHistory.delete(entry.id)
+                                queryDb()
+                            }
+                        },
+                        onCopy = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("text", entry.text))
+                            Toast.makeText(context, "Texto copiado para a área de transferência", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
+
+                if (hasMore) {
+                    item(key = "loading_more") {
+                        LaunchedEffect(Unit) { queryDb(append = true) }
+                        Box(
+                            Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(Modifier.size(24.dp))
                         }
                     }
                 }
@@ -415,21 +384,27 @@ fun HistoryScreen(navController: NavController) {
 
             // Bottom Clear All button
             if (totalCount > 0) {
-                OutlinedButton(
-                    onClick = { showClearDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
-                    )
-                ) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Limpar Todo o Histórico")
+                item(key = "clear_all_button") {
+                    OutlinedButton(
+                        onClick = { showClearDialog = true },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                        )
+                    ) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Limpar Todo o Histórico")
+                    }
                 }
+            }
+
+            item(key = "bottom_spacer") {
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -489,6 +464,7 @@ private fun StitchHistoryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -501,7 +477,9 @@ private fun StitchHistoryCard(
                     Text(
                         formatTimestamp(entry.timestamp),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (entry.isFavorite) {
                         Surface(

@@ -74,7 +74,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -93,6 +95,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.echoreading.reader.ReaderAudioCache
@@ -111,6 +114,10 @@ import java.util.Locale
 @Composable
 fun SettingsScreen() {
     var currentView by rememberSaveable { mutableStateOf("main") }
+
+    BackHandler(enabled = currentView != "main") {
+        currentView = "main"
+    }
 
     when (currentView) {
         "main" -> SettingsMainMenu(onNavigate = { currentView = it })
@@ -141,60 +148,9 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .safeDrawingPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Stitch Hero Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                )
-            )
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.settings_title),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        stringResource(R.string.settings_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         // Category Cards List
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Category 1: Personalização
@@ -276,6 +232,8 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
                 }
             }
         }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -390,8 +348,7 @@ private fun SettingsTheme(onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .safeDrawingPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Breadcrumb Back Header
@@ -576,6 +533,8 @@ private fun SettingsTheme(onBack: () -> Unit) {
                 )
             }
         }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -598,6 +557,16 @@ private fun SettingsVoice(onBack: () -> Unit) {
     var activePlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     var voiceToDelete by remember { mutableStateOf<VoiceOption?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            activePlayer?.stop()
+            activePlayer?.release()
+            activePlayer = null
+            playingVoiceId = null
+            isDemonstratingActive = false
+        }
+    }
 
     fun playSample(voice: VoiceOption, speed: Float = snapshot.speed) {
         if (playingVoiceId != null) {
@@ -653,8 +622,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .safeDrawingPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Breadcrumb Back Header
@@ -697,6 +665,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
+                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -707,18 +676,22 @@ private fun SettingsVoice(onBack: () -> Unit) {
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        "VOZES INSTALADAS (NO DISPOSITIVO)",
+                        "VOZES INSTALADAS",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
                         ),
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+                Spacer(Modifier.width(8.dp))
                 Text(
                     "${installedVoices.size} vozes • ${String.format(Locale.US, "%.0f", installedMb)} MB",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
 
@@ -770,37 +743,21 @@ private fun SettingsVoice(onBack: () -> Unit) {
                         }
 
                         Column(Modifier.weight(1f)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    voice.label,
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceContainerHigh
-                                ) {
-                                    Text(
-                                        if (voice.url == null) "PADRÃO" else "NEURAL HD",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(2.dp))
                             Text(
-                                "${if (voice.url == null) "Portugal · Offline integrado (63 MB)" else "Transferida (${String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f))} MB)"}",
+                                voice.label,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                if (voice.url == null) "Padrão · Integrado (${String.format(Locale.US, "%.0f", installedMb)} MB)"
+                                else "Neutral · Transferida (${String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f))} MB)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -856,6 +813,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -871,13 +829,17 @@ private fun SettingsVoice(onBack: () -> Unit) {
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
                             ),
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         "Nuvem TTS",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                 }
 
@@ -942,34 +904,20 @@ private fun SettingsVoice(onBack: () -> Unit) {
                                 }
 
                                 Column(Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            voice.label,
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-                                        )
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.surfaceContainerHigh
-                                        ) {
-                                            Text(
-                                                "NEURAL",
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                ),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.height(2.dp))
                                     Text(
-                                        "${String.format(Locale.US, "%.1f", sizeMb)} MB · Pacote de Voz Neural",
+                                        voice.label,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        "Neutral · ${String.format(Locale.US, "%.1f", sizeMb)} MB",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
@@ -1006,12 +954,12 @@ private fun SettingsVoice(onBack: () -> Unit) {
                                             contentColor = MaterialTheme.colorScheme.onPrimary
                                         ),
                                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                            horizontal = 14.dp,
+                                            horizontal = 12.dp,
                                             vertical = 8.dp
                                         )
                                     ) {
                                         Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
+                                        Spacer(Modifier.width(4.dp))
                                         Text(
                                             "${String.format(Locale.US, "%.0f", sizeMb)} MB",
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
@@ -1024,7 +972,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.primary
                                         )
-                                        Spacer(Modifier.width(6.dp))
+                                        Spacer(Modifier.width(4.dp))
                                         IconButton(
                                             onClick = {
                                                 downloadJob?.cancel()
@@ -1061,12 +1009,17 @@ private fun SettingsVoice(onBack: () -> Unit) {
                                     Text(
                                         "A descarregar modelo neural...",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
+                                    Spacer(Modifier.width(8.dp))
                                     Text(
                                         "${String.format(Locale.US, "%.1f", downloadCopiedMb)} MB / ${String.format(Locale.US, "%.1f", sizeMb)} MB",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
                                     )
                                 }
                             }
@@ -1099,6 +1052,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -1110,9 +1064,12 @@ private fun SettingsVoice(onBack: () -> Unit) {
                         )
                         Text(
                             "Ajustes da Voz (${activeVoice.label.substringAfterLast("·").trim()})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(Modifier.width(8.dp))
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer
@@ -1121,7 +1078,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
                             "Ativa",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -1238,6 +1195,8 @@ private fun SettingsVoice(onBack: () -> Unit) {
                 }
             )
         }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -1288,8 +1247,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .safeDrawingPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Breadcrumb Back Header
@@ -1416,7 +1374,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(
                                 Modifier
                                     .size(8.dp)
@@ -1425,10 +1383,13 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             Text(
                                 "Vozes: ${String.format(Locale.US, "%.1f", voiceMb)} MB",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Spacer(Modifier.width(4.dp))
+                        Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(
                                 Modifier
                                     .size(8.dp)
@@ -1437,10 +1398,13 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             Text(
                                 "Cache: ${String.format(Locale.US, "%.1f", cacheMb)} MB",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Spacer(Modifier.width(4.dp))
+                        Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(
                                 Modifier
                                     .size(8.dp)
@@ -1449,7 +1413,9 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             Text(
                                 "Textos: ${String.format(Locale.US, "%.2f", historyMb)} MB",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -1716,6 +1682,8 @@ private fun SettingsStorage(onBack: () -> Unit) {
                 }
             )
         }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
