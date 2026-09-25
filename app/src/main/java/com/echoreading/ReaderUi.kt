@@ -1012,7 +1012,7 @@ private fun StitchStatusVoiceBar(snapshot: ReaderSnapshot, enabled: Boolean) {
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.secondary
                     )
-                    val shortName = OfflineVoice.option(snapshot.voiceId).label.split("·").lastOrNull()?.trim() ?: "Tugão"
+                    val shortName = OfflineVoice.option(context, snapshot.voiceId).label.split("·").lastOrNull()?.trim() ?: "Tugão"
                     Text(
                         "$shortName • ${String.format(Locale.US, "%.1f", snapshot.speed)}x",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -1028,7 +1028,7 @@ private fun StitchStatusVoiceBar(snapshot: ReaderSnapshot, enabled: Boolean) {
             }
 
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                OfflineVoice.voices.forEach { voice ->
+                OfflineVoice.allVoices(context).forEach { voice ->
                     val installed = OfflineVoice.isInstalled(context, voice)
                     DropdownMenuItem(
                         text = {

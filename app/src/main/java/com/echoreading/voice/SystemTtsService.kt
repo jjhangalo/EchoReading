@@ -11,15 +11,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class SystemTtsService : TextToSpeechService() {
     private val cancelled = AtomicBoolean(false)
-    private fun installed() = OfflineVoice.voices.filter { OfflineVoice.isInstalled(this, it) }
+    private fun installed() = OfflineVoice.allVoices(this).filter { OfflineVoice.isInstalled(this, it) }
 
     private fun matches(voice: VoiceOption, lang: String?, country: String?): Boolean {
-        val locale = Locale.forLanguageTag(voice.id)
+        val tag = voice.languageCode?.replace('_', '-') ?: voice.id
+        val locale = Locale.forLanguageTag(tag)
         val requestedLanguage = lang.orEmpty()
         val requestedCountry = country.orEmpty()
-        return (requestedLanguage == locale.language || requestedLanguage == locale.getISO3Language()) &&
+        val iso3Lang = try { locale.isO3Language } catch (_: Exception) { "" }
+        val iso3Country = try { locale.isO3Country } catch (_: Exception) { "" }
+        return (requestedLanguage.equals(locale.language, true) || requestedLanguage.equals(iso3Lang, true)) &&
             (requestedCountry.isEmpty() || requestedCountry.equals(locale.country, true) ||
-                requestedCountry.equals(locale.getISO3Country(), true))
+                requestedCountry.equals(iso3Country, true))
     }
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int =
@@ -33,13 +36,18 @@ class SystemTtsService : TextToSpeechService() {
 
     override fun onGetLanguage(): Array<String> {
         val preferred = getSharedPreferences("reading", MODE_PRIVATE).getString("voice", "pt-PT")
-        val locale = Locale.forLanguageTag(installed().firstOrNull { it.id == preferred }?.id ?: "pt-PT")
-        return arrayOf(locale.getISO3Language(), locale.getISO3Country(), "")
+        val voice = installed().firstOrNull { it.id == preferred } ?: installed().firstOrNull() ?: OfflineVoice.voices.first()
+        val tag = voice.languageCode?.replace('_', '-') ?: voice.id
+        val locale = Locale.forLanguageTag(tag)
+        val iso3Lang = try { locale.isO3Language } catch (_: Exception) { locale.language }
+        val iso3Country = try { locale.isO3Country } catch (_: Exception) { locale.country }
+        return arrayOf(iso3Lang, iso3Country, "")
     }
 
     override fun onGetVoices(): MutableList<Voice> = installed().map { voice ->
+        val tag = voice.languageCode?.replace('_', '-') ?: voice.id
         Voice(
-            voice.id, Locale.forLanguageTag(voice.id), Voice.QUALITY_NORMAL,
+            voice.id, Locale.forLanguageTag(tag), Voice.QUALITY_NORMAL,
             Voice.LATENCY_NORMAL, false, emptySet(),
         )
     }.toMutableList()
@@ -70,7 +78,7 @@ class SystemTtsService : TextToSpeechService() {
                 ?: run { callback.error(); return }
             val text = request.charSequenceText.toString()
             if (text.isBlank()) {
-                if (callback.start(OfflineVoice.option(voiceId).sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1) == TextToSpeech.SUCCESS) {
+                if (callback.start(OfflineVoice.option(this, voiceId).sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1) == TextToSpeech.SUCCESS) {
                     callback.done()
                 }
                 return

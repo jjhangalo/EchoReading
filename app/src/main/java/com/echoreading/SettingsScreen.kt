@@ -116,13 +116,22 @@ fun SettingsScreen() {
     var currentView by rememberSaveable { mutableStateOf("main") }
 
     BackHandler(enabled = currentView != "main") {
-        currentView = "main"
+        currentView = when (currentView) {
+            "descobrir_vozes" -> "voz"
+            else -> "main"
+        }
     }
 
     when (currentView) {
         "main" -> SettingsMainMenu(onNavigate = { currentView = it })
         "personalizacao" -> SettingsTheme(onBack = { currentView = "main" })
-        "voz" -> SettingsVoice(onBack = { currentView = "main" })
+        "voz" -> SettingsVoice(
+            onBack = { currentView = "main" },
+            onDiscoverVoices = { currentView = "descobrir_vozes" },
+        )
+        "descobrir_vozes" -> VoiceDiscoveryScreen(
+            onBack = { currentView = "voz" },
+        )
         "armazenamento" -> SettingsStorage(onBack = { currentView = "main" })
     }
 }
@@ -133,7 +142,7 @@ fun SettingsScreen() {
 @Composable
 private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
     val context = LocalContext.current
-    val installedCount = OfflineVoice.voices.count { OfflineVoice.isInstalled(context, it) }
+    val installedCount = OfflineVoice.allVoices(context).count { OfflineVoice.isInstalled(context, it) }
 
     val voiceBytes = remember {
         File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -542,7 +551,7 @@ private fun SettingsTheme(onBack: () -> Unit) {
 // VIEW 3: VOZ (VOICE MANAGEMENT & AUDITION)
 // ---------------------------------------------------------------------------
 @Composable
-private fun SettingsVoice(onBack: () -> Unit) {
+private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     val context = LocalContext.current
     val snapshot by ReaderState.snapshot.collectAsState()
     val scope = rememberCoroutineScope()
@@ -582,13 +591,7 @@ private fun SettingsVoice(onBack: () -> Unit) {
 
         scope.launch {
             try {
-                val sampleText = if (voice.id.startsWith("en")) {
-                    "Hello! This is a preview of this voice reading text aloud."
-                } else if (voice.id.contains("BR")) {
-                    "Olá! Esta é uma demonstração da voz brasileira lendo texto em voz alta."
-                } else {
-                    "Olá! Esta é uma demonstração desta voz lendo texto em voz alta com clareza e ritmo natural."
-                }
+                val sampleText = com.echoreading.voice.sampleGreetingFor(voice)
                 val audio = withContext(Dispatchers.IO) {
                     OfflineVoice.synthesize(context, sampleText, voice.id, speed)
                 }
@@ -611,12 +614,14 @@ private fun SettingsVoice(onBack: () -> Unit) {
         }
     }
 
-    val installedVoices = OfflineVoice.voices.filter { OfflineVoice.isInstalled(context, it) }
+    val installedVoices = OfflineVoice.allVoices(context).filter { OfflineVoice.isInstalled(context, it) }
     val installedMb = installedVoices.sumOf {
         if (it.url == null) 63L * 1024 * 1024 else it.fileSize
     } / (1024f * 1024f)
 
-    val downloadableVoices = OfflineVoice.voices.filter { !OfflineVoice.isInstalled(context, it) }
+    val downloadableVoices = OfflineVoice.voices.filter { voice ->
+        !installedVoices.any { it.modelFile == voice.modelFile }
+    }
 
     Column(
         Modifier
@@ -1029,10 +1034,53 @@ private fun SettingsVoice(onBack: () -> Unit) {
             }
         }
 
+        // "Discover more voices" entry point
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onDiscoverVoices() },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ),
+        ) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    Icons.Default.CloudDownload,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Descobrir Mais Vozes",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        "Explorar catálogo online · 177 vozes · 53 idiomas",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         // -------------------------------------------------------------------
         // SECTION C: AJUSTES DA VOZ SELECIONADA
         // -------------------------------------------------------------------
-        val activeVoice = OfflineVoice.option(snapshot.voiceId)
+        val activeVoice = OfflineVoice.option(context, snapshot.voiceId)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -1177,6 +1225,12 @@ private fun SettingsVoice(onBack: () -> Unit) {
                         onClick = {
                             val dir = File(context.noBackupFilesDir, "voices/${voice.id}")
                             dir.deleteRecursively()
+                            File(context.noBackupFilesDir, "voices").listFiles()?.forEach { f ->
+                                if (f.isDirectory && f.listFiles()?.any { it.name == voice.modelFile } == true) {
+                                    f.deleteRecursively()
+                                }
+                            }
+                            OfflineVoice.invalidateDiscoveryCache()
                             if (snapshot.voiceId == voice.id) {
                                 ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = "pt-PT")
                                 ReaderState.save(context)
@@ -1635,6 +1689,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             File(context.noBackupFilesDir, "voices").listFiles()?.forEach { f ->
                                 if (f.name != "tokens.txt") f.deleteRecursively()
                             }
+                            OfflineVoice.invalidateDiscoveryCache()
                             if (snapshot.voiceId != "pt-PT") {
                                 ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = "pt-PT")
                                 ReaderState.save(context)

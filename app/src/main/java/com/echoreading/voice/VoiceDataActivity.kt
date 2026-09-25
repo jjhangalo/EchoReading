@@ -16,9 +16,12 @@ class VoiceDataActivity : Activity() {
                     TextToSpeech.Engine.CHECK_VOICE_DATA_PASS,
                     Intent().putStringArrayListExtra(
                         TextToSpeech.Engine.EXTRA_AVAILABLE_VOICES,
-                        ArrayList(OfflineVoice.voices.filter { OfflineVoice.isInstalled(this, it) }.map { voice ->
-                            val locale = Locale.forLanguageTag(voice.id)
-                            "${locale.getISO3Language()}-${locale.getISO3Country()}"
+                        ArrayList(OfflineVoice.allVoices(this).filter { OfflineVoice.isInstalled(this, it) }.map { voice ->
+                            val tag = voice.languageCode?.replace('_', '-') ?: voice.id
+                            val locale = Locale.forLanguageTag(tag)
+                            val lang = try { locale.isO3Language } catch (_: Exception) { locale.language }
+                            val country = try { locale.isO3Country } catch (_: Exception) { locale.country }
+                            if (country.isNotEmpty()) "$lang-$country" else lang
                         }),
                     ),
                 )
