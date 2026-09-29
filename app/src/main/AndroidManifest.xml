@@ -21,6 +21,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <activity
@@ -28,14 +33,9 @@
             android:exported="true"
             android:theme="@style/QuickReadTheme"
             android:excludeFromRecents="true"
-            android:label="@string/read_aloud">
-            <intent-filter android:label="@string/read_aloud">
+            android:label="@string/action_ecoar">
+            <intent-filter android:label="@string/action_ecoar">
                 <action android:name="android.intent.action.PROCESS_TEXT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-            <intent-filter android:label="@string/read_aloud">
-                <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>

@@ -804,5 +804,6 @@ fun isVoiceInstalled(context: Context, voice: CatalogVoice): Boolean {
     val installed = OfflineVoice.allVoices(context).filter { OfflineVoice.isInstalled(context, it) }
     if (installed.any { it.modelFile == modelFileName }) return true
     val voiceDir = File(context.noBackupFilesDir, "voices/${voice.key}")
-    return File(voiceDir, modelFileName).length() == voice.onnxSizeBytes
+    val file = File(voiceDir, modelFileName)
+    return file.isFile && file.length() >= voice.onnxSizeBytes
 }

@@ -1,6 +1,9 @@
 package com.echoreading.reader
 
 import android.content.Context
+import android.content.Intent
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 enum class ReadingStatus { IDLE, PREPARING, PLAYING, PAUSED, ERROR }
@@ -18,6 +21,50 @@ data class ReaderSnapshot(
 
 object ReaderState {
     val snapshot = MutableStateFlow(ReaderSnapshot())
+    val loadTextEvent = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    fun loadText(context: Context, text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+
+        if (snapshot.value.status == ReadingStatus.PLAYING ||
+            snapshot.value.status == ReadingStatus.PREPARING ||
+            snapshot.value.status == ReadingStatus.PAUSED) {
+            try {
+                val stopIntent = Intent(context, ReaderPlaybackService::class.java).apply {
+                    action = ReaderPlaybackService.ACTION_STOP
+                }
+                context.startService(stopIntent)
+            } catch (_: Exception) {
+            }
+        }
+
+        snapshot.value = snapshot.value.copy(
+            text = clean,
+            status = ReadingStatus.IDLE,
+            positionMs = 0L,
+            durationMs = 0L,
+            characterOffset = 0,
+            error = null,
+        )
+
+        try {
+            context.getSharedPreferences("reading", Context.MODE_PRIVATE)
+                .edit()
+                .putString("draft", clean)
+                .putString("text", clean)
+                .putLong("position_ms", 0L)
+                .putInt("character_offset", 0)
+                .apply()
+        } catch (_: Exception) {
+        }
+
+        loadTextEvent.tryEmit(clean)
+    }
 
     fun restore(context: Context) {
         if (snapshot.value.text.isNotEmpty()) return

@@ -169,6 +169,16 @@ class ReaderPlaybackService : MediaSessionService() {
             ACTION_FORWARD -> moveBy(10_000)
             ACTION_RESET -> resetReading()
             ACTION_STOP -> stopReading()
+            ACTION_SPEED -> {
+                val speed = intent.getFloatExtra(EXTRA_SPEED, ReaderState.snapshot.value.speed)
+                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = speed)
+                ReaderState.save(this)
+                val currentText = intent.getStringExtra(EXTRA_TEXT).orEmpty().ifBlank { ReaderState.snapshot.value.text }
+                if (currentText.isNotBlank() && (ReaderState.snapshot.value.status == ReadingStatus.PLAYING || ReaderState.snapshot.value.status == ReadingStatus.PREPARING)) {
+                    val pos = intent.getLongExtra(EXTRA_POSITION, ReaderState.snapshot.value.positionMs)
+                    startReading(currentText, pos, ReaderState.snapshot.value.voiceId, speed)
+                }
+            }
         }
         super.onStartCommand(intent, flags, startId)
         return START_NOT_STICKY
@@ -622,6 +632,7 @@ class ReaderPlaybackService : MediaSessionService() {
         const val ACTION_FORWARD = "com.echoreading.FORWARD_10"
         const val ACTION_STOP = "com.echoreading.STOP"
         const val ACTION_RESET = "com.echoreading.RESET"
+        const val ACTION_SPEED = "com.echoreading.SPEED"
 
         fun formatTitle(text: String, fallback: String): String {
             val clean = text.replace(Regex("\\s+"), " ").trim()

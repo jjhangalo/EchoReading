@@ -78,6 +78,7 @@ object OfflineVoice {
         discoveryCache?.let { return it }
         val voicesDir = File(context.noBackupFilesDir, "voices")
         if (!voicesDir.isDirectory) return emptyList()
+        OnnxMetadata.repairAllInstalledVoices(context)
         val hardcodedIds = voices.map { it.id }.toSet()
         val result = voicesDir.listFiles()?.filter { dir ->
             dir.isDirectory && dir.name !in hardcodedIds &&
@@ -122,12 +123,12 @@ object OfflineVoice {
     fun isInstalled(context: Context, voice: VoiceOption): Boolean {
         if (voice.url == null) return true
         val directFile = File(modelDirectory(context, voice), voice.modelFile)
-        if (directFile.length() == voice.fileSize) return true
+        if (directFile.isFile && directFile.length() >= voice.fileSize) return true
         // Also check if installed under discovery key or alternate folder with matching model file
         val voicesDir = File(context.noBackupFilesDir, "voices")
         if (voicesDir.isDirectory) {
             val matching = voicesDir.listFiles()?.any { dir ->
-                dir.isDirectory && File(dir, voice.modelFile).length() == voice.fileSize
+                dir.isDirectory && File(dir, voice.modelFile).let { it.isFile && it.length() >= voice.fileSize }
             } == true
             if (matching) return true
         }
@@ -147,6 +148,12 @@ object OfflineVoice {
                 sha256Expected = voice.sha256,
                 onProgress = onProgress,
             )
+            OnnxMetadata.repairModelFile(
+                onnxFile = target,
+                fallbackSampleRate = voice.sampleRate,
+                fallbackLanguage = voice.languageCode ?: "",
+            )
+            invalidateDiscoveryCache()
         }
     }
 
@@ -197,7 +204,7 @@ object OfflineVoice {
 
         // 3. Download .onnx model (large, ~60MB)
         val onnxTarget = File(voiceDir, modelFile)
-        if (onnxTarget.length() != catalogVoice.onnxSizeBytes) {
+        if (!onnxTarget.isFile || onnxTarget.length() < catalogVoice.onnxSizeBytes) {
             downloadFile(
                 url = VoiceCatalog.downloadUrl(catalogVoice.onnxFilePath),
                 target = onnxTarget,
@@ -206,6 +213,14 @@ object OfflineVoice {
                 onProgress = onProgress,
             )
         }
+
+        // Inject missing Sherpa-ONNX metadata from companion config
+        OnnxMetadata.repairModelFile(
+            onnxFile = onnxTarget,
+            configFile = configTarget,
+            fallbackSampleRate = sampleRate,
+            fallbackLanguage = catalogVoice.languageCode,
+        )
 
         // 4. Write meta.json for discovery listing
         val label = buildString {
@@ -224,7 +239,7 @@ object OfflineVoice {
             put("sampleRate", sampleRate)
             put("url", VoiceCatalog.downloadUrl(catalogVoice.onnxFilePath))
             put("md5", catalogVoice.onnxMd5)
-            put("fileSize", catalogVoice.onnxSizeBytes)
+            put("fileSize", onnxTarget.length())
             put("languageCode", catalogVoice.languageCode)
         }
         File(voiceDir, "meta.json").writeText(meta.toString(2))
@@ -360,6 +375,17 @@ object OfflineVoice {
                     dir.isDirectory && File(dir, voice.modelFile).isFile
                 }
                 if (alt != null) File(alt, voice.modelFile).absolutePath else direct.absolutePath
+            }
+        }
+
+        if (!bundled) {
+            val modelFile = File(modelPath)
+            if (modelFile.isFile && !OnnxMetadata.hasSampleRate(modelFile)) {
+                OnnxMetadata.repairModelFile(
+                    onnxFile = modelFile,
+                    fallbackSampleRate = voice.sampleRate,
+                    fallbackLanguage = voice.languageCode ?: "",
+                )
             }
         }
 

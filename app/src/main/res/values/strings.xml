@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Eco Leitura</string>
+    <string name="action_ecoar">Ecoar</string>
+    <string name="open_in_reader">Abrir no Leitor</string>
     <string name="read_aloud">Ler em voz alta</string>
     <string name="reading">Leitura</string>
     <string name="read_text_hint">Escreve ou cola aqui o texto a ler</string>

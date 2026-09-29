@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -37,7 +38,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EditNote
@@ -217,6 +220,17 @@ fun EcoApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"
 
+    LaunchedEffect(Unit) {
+        ReaderState.loadTextEvent.collect {
+            if (currentRoute != "home") {
+                navController.navigate("home") {
+                    popUpTo("home") { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -345,6 +359,12 @@ fun ReaderHome() {
         val draft = context.getSharedPreferences("reading", Context.MODE_PRIVATE)
             .getString("draft", snapshot.text).orEmpty()
         mutableStateOf(TextFieldValue(draft))
+    }
+
+    LaunchedEffect(Unit) {
+        ReaderState.loadTextEvent.collect { newText ->
+            input = TextFieldValue(text = newText, selection = TextRange(0))
+        }
     }
 
     LaunchedEffect(input.text) {
@@ -503,9 +523,13 @@ fun ReaderHome() {
                     }
 
                     // Footnote: stats counter & estimated duration
-                    val words = if (input.text.isBlank()) 0 else input.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+                    val words = remember(input.text) {
+                        if (input.text.isBlank()) 0 else input.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+                    }
                     val chars = input.text.length
-                    val estSeconds = if (words > 0) (words / (2.5 * snapshot.speed)).toInt() else 0
+                    val estSeconds = remember(words, snapshot.speed) {
+                        if (words > 0) (words / (2.5 * snapshot.speed)).toInt() else 0
+                    }
 
                     Row(
                         Modifier.fillMaxWidth(),
@@ -1097,45 +1121,270 @@ fun ReaderQuickPanel(text: String, onClose: () -> Unit) {
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* no-op callback */ }
-    Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 8.dp) {
-        Column(
-            Modifier.fillMaxWidth().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                Text(
-                    text,
-                    modifier = Modifier.padding(16.dp),
-                    maxLines = 8,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+
+    // Auto-initiate playback on launch: LaunchedEffect(text) sends ACTION_READ to ReaderPlaybackService
+    LaunchedEffect(text) {
+        if (text.isNotBlank()) {
+            val isAlreadyPlayingThis = snapshot.text == text &&
+                (snapshot.status == ReadingStatus.PLAYING ||
+                 snapshot.status == ReadingStatus.PREPARING ||
+                 snapshot.status == ReadingStatus.PAUSED)
+            if (!isAlreadyPlayingThis) {
+                sendCommand(context, ReaderPlaybackService.ACTION_READ, text)
             }
-            StitchStatusVoiceBar(snapshot = snapshot, enabled = snapshot.status == ReadingStatus.IDLE)
-            Button(
-                onClick = {
-                    if (ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.POST_NOTIFICATIONS
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        notificationPermissionLauncher.launch(
-                            Manifest.permission.POST_NOTIFICATIONS
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 8.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Drag handle affordance
+            Box(
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(4.dp)
+                    .background(
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        CircleShape
+                    )
+            )
+
+            // Header row with title, waveform pill and close icon
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(
+                                if (snapshot.status == ReadingStatus.PLAYING) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
+                                CircleShape
+                            )
+                    )
+                    Text(
+                        stringResource(R.string.action_ecoar),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    StitchWaveformPill(isPlaying = snapshot.status == ReadingStatus.PLAYING)
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(onClick = onClose)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.close_panel),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    val sameReading = snapshot.text == text &&
-                        snapshot.status == ReadingStatus.IDLE && snapshot.positionMs > 0
-                    if (sameReading) sendCommand(context, ReaderPlaybackService.ACTION_PLAY)
-                    else sendCommand(context, ReaderPlaybackService.ACTION_READ, text)
-                },
+                }
+            }
+
+            // Scrollable text card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 60.dp, max = 130.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(14.dp)
+                ) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Voice selection & status
+            StitchStatusVoiceBar(snapshot = snapshot, enabled = true)
+
+            // Transport controls (Rewind 10s, Play/Pause FAB, Forward 10s)
+            val isPlaying = snapshot.status == ReadingStatus.PLAYING
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.start_reading))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Rewind 10s
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { sendCommand(context, ReaderPlaybackService.ACTION_BACK) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Replay10,
+                                contentDescription = stringResource(R.string.rewind_ten),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Play/Pause FAB responding to snapshot.status
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clickable {
+                                if (!isPlaying && ContextCompat.checkSelfPermission(
+                                        context, Manifest.permission.POST_NOTIFICATIONS
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    notificationPermissionLauncher.launch(
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    )
+                                }
+                                when (snapshot.status) {
+                                    ReadingStatus.PLAYING -> {
+                                        sendCommand(context, ReaderPlaybackService.ACTION_PAUSE)
+                                    }
+                                    ReadingStatus.PAUSED -> {
+                                        sendCommand(context, ReaderPlaybackService.ACTION_PLAY)
+                                    }
+                                    else -> {
+                                        sendCommand(context, ReaderPlaybackService.ACTION_READ, text)
+                                    }
+                                }
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) stringResource(R.string.pause_reading) else stringResource(R.string.resume_reading),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+
+                    // Forward 10s
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { sendCommand(context, ReaderPlaybackService.ACTION_FORWARD) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Forward10,
+                                contentDescription = stringResource(R.string.forward_ten),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
             }
-            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.close_panel))
+
+            // Speed adjustment pills (0.75x, 1.0x, 1.25x, 1.5x, 2.0x) dispatching ACTION_SPEED
+            val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                speeds.forEach { s ->
+                    val isSelected = snapshot.speed == s
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .clickable {
+                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
+                                ReaderState.save(context)
+                                val intent = Intent(context, ReaderPlaybackService::class.java).apply {
+                                    action = ReaderPlaybackService.ACTION_SPEED
+                                    putExtra(ReaderPlaybackService.EXTRA_SPEED, s)
+                                    putExtra(ReaderPlaybackService.EXTRA_TEXT, text)
+                                    putExtra(ReaderPlaybackService.EXTRA_POSITION, snapshot.positionMs)
+                                }
+                                context.startService(intent)
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "${s}x",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Action button: "Abrir no Leitor" expands into MainActivity
+            Button(
+                onClick = {
+                    val intent = Intent(context, MainActivity::class.java).apply {
+                        action = Intent.ACTION_VIEW
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(intent)
+                    onClose()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.open_in_reader),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
             }
         }
     }
