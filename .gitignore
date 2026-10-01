@@ -21,3 +21,7 @@ local.properties
 /.statem/
 .kotlin/
 .agents/
+
+# Provision these large runtime assets outside Git (release download, LFS, etc.).
+/app/src/main/jniLibs/
+/app/src/main/assets/vits-piper-pt_PT-tugao-medium/
