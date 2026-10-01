@@ -104,6 +104,7 @@ import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.WavFiles
 import com.echoreading.voice.OfflineVoice
 import com.echoreading.voice.VoiceOption
+import com.echoreading.speech.OfflineSpeech
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -147,11 +148,13 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
     val voiceBytes = remember {
         File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
+    val speechBytes = remember { OfflineSpeech.getModelSizeBytes(context) }
     val cacheBytes = remember {
         context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
     }
     val historyBytes = remember { ReadingHistory.sizeBytes(context) }
-    val totalMb = (voiceBytes + cacheBytes + historyBytes) / (1024f * 1024f)
+    val totalMb = (voiceBytes + speechBytes + cacheBytes + historyBytes) / (1024f * 1024f)
+    val speechInstalled = remember { OfflineSpeech.isModelInstalled(context) }
 
     Column(
         Modifier
@@ -180,7 +183,7 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
                 iconContainerColor = MaterialTheme.colorScheme.primaryContainer,
                 iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
                 title = stringResource(R.string.settings_voice),
-                badgeText = "$installedCount Instaladas",
+                badgeText = if (speechInstalled) "$installedCount TTS • STT" else "$installedCount TTS",
                 badgePrimary = true,
                 subtitle = stringResource(R.string.settings_voice_sub),
                 onClick = { onNavigate("voz") }
@@ -567,6 +570,14 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
 
     var voiceToDelete by remember { mutableStateOf<VoiceOption?>(null) }
 
+    var isSpeechInstalled by remember { mutableStateOf(OfflineSpeech.isModelInstalled(context)) }
+    var speechModelBytes by remember { mutableLongStateOf(OfflineSpeech.getModelSizeBytes(context)) }
+    var isDownloadingSpeech by remember { mutableStateOf(false) }
+    var speechDownloadProgress by remember { mutableFloatStateOf(0f) }
+    var speechDownloadCopiedMb by remember { mutableFloatStateOf(0f) }
+    var speechDownloadJob by remember { mutableStateOf<Job?>(null) }
+    var showDeleteSpeechDialog by remember { mutableStateOf(false) }
+
     DisposableEffect(Unit) {
         onDispose {
             activePlayer?.stop()
@@ -574,6 +585,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             activePlayer = null
             playingVoiceId = null
             isDemonstratingActive = false
+            speechDownloadJob?.cancel()
         }
     }
 
@@ -654,14 +666,14 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                 )
             }
             Text(
-                "GESTÃO TTS",
+                "MODELOS DE VOZ",
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
         // -------------------------------------------------------------------
-        // SECTION A: VOZES INSTALADAS
+        // SECTION A: VOZES INSTALADAS (TTS)
         // -------------------------------------------------------------------
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -681,7 +693,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        "VOZES INSTALADAS",
+                        "VOZES INSTALADAS (TTS)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
@@ -1250,6 +1262,275 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             )
         }
 
+        // -------------------------------------------------------------------
+        // SECTION D: TRANSCRIÇÃO DE VOZ (STT)
+        // -------------------------------------------------------------------
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Mic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        "TRANSCRIÇÃO DE VOZ (STT)",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isSpeechInstalled) {
+                    Text(
+                        "${String.format(Locale.US, "%.1f", speechModelBytes / (1024f * 1024f))} MB",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(
+                        if (isDownloadingSpeech) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    )
+                )
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDownloadingSpeech) MaterialTheme.colorScheme.secondaryContainer
+                            else if (isSpeechInstalled) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (isDownloadingSpeech) {
+                                    val infiniteTransition = rememberInfiniteTransition(label = "downloading_speech")
+                                    val rotation by infiniteTransition.animateFloat(
+                                        initialValue = 0f,
+                                        targetValue = 360f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(1200, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Restart
+                                        ),
+                                        label = "rotation"
+                                    )
+                                    Icon(
+                                        Icons.Default.Sync,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .rotate(rotation)
+                                    )
+                                } else {
+                                    Icon(
+                                        if (isSpeechInstalled) Icons.Default.CheckCircle else Icons.Default.GraphicEq,
+                                        contentDescription = null,
+                                        tint = if (isSpeechInstalled) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.stt_model_whisper),
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                if (isSpeechInstalled) {
+                                    "${stringResource(R.string.stt_model_installed)} · ${String.format(Locale.US, "%.1f", speechModelBytes / (1024f * 1024f))} MB"
+                                } else {
+                                    stringResource(R.string.stt_model_not_installed)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (!isDownloadingSpeech) {
+                            if (isSpeechInstalled) {
+                                IconButton(
+                                    onClick = { showDeleteSpeechDialog = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.DeleteOutline,
+                                        contentDescription = "Eliminar Modelo STT",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        isDownloadingSpeech = true
+                                        speechDownloadProgress = 0f
+                                        speechDownloadCopiedMb = 0f
+                                        speechDownloadJob = scope.launch {
+                                            try {
+                                                OfflineSpeech.installModel(context) { copied, total ->
+                                                    if (total > 0) {
+                                                        speechDownloadProgress = copied.toFloat() / total
+                                                        speechDownloadCopiedMb = copied / (1024f * 1024f)
+                                                    }
+                                                }
+                                                isSpeechInstalled = OfflineSpeech.isModelInstalled(context)
+                                                speechModelBytes = OfflineSpeech.getModelSizeBytes(context)
+                                                Toast.makeText(context, "Modelo Whisper instalado com sucesso!", Toast.LENGTH_SHORT).show()
+                                            } catch (e: Exception) {
+                                                if (e !is kotlinx.coroutines.CancellationException) {
+                                                    Toast.makeText(context, "Falha ao descarregar modelo: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } finally {
+                                                isDownloadingSpeech = false
+                                                speechDownloadProgress = 0f
+                                            }
+                                        }
+                                    },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                        horizontal = 12.dp,
+                                        vertical = 8.dp
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "150 MB",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "${(speechDownloadProgress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = {
+                                        speechDownloadJob?.cancel()
+                                        isDownloadingSpeech = false
+                                        speechDownloadProgress = 0f
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Cancelar",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (isDownloadingSpeech) {
+                        LinearProgressIndicator(
+                            progress = { speechDownloadProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(CircleShape),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "A descarregar modelo Whisper...",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "${String.format(Locale.US, "%.1f", speechDownloadCopiedMb)} MB / ~150 MB",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showDeleteSpeechDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteSpeechDialog = false },
+                title = { Text("Eliminar Modelo Whisper") },
+                text = {
+                    Text(stringResource(R.string.stt_delete_confirm))
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            OfflineSpeech.deleteModel(context)
+                            isSpeechInstalled = OfflineSpeech.isModelInstalled(context)
+                            speechModelBytes = OfflineSpeech.getModelSizeBytes(context)
+                            showDeleteSpeechDialog = false
+                            Toast.makeText(context, "Modelo de transcrição eliminado", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteSpeechDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -1268,6 +1549,9 @@ private fun SettingsStorage(onBack: () -> Unit) {
             File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
         )
     }
+    var speechBytes by remember {
+        mutableLongStateOf(OfflineSpeech.getModelSizeBytes(context))
+    }
     var cacheBytes by remember {
         mutableLongStateOf(
             context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -1277,9 +1561,10 @@ private fun SettingsStorage(onBack: () -> Unit) {
         mutableLongStateOf(ReadingHistory.sizeBytes(context))
     }
 
-    val totalBytes = voiceBytes + cacheBytes + historyBytes
+    val totalBytes = voiceBytes + speechBytes + cacheBytes + historyBytes
     val totalMb = totalBytes / (1024f * 1024f)
     val voiceMb = voiceBytes / (1024f * 1024f)
+    val speechMb = speechBytes / (1024f * 1024f)
     val cacheMb = cacheBytes / (1024f * 1024f)
     val historyMb = historyBytes / (1024f * 1024f)
 
@@ -1289,10 +1574,12 @@ private fun SettingsStorage(onBack: () -> Unit) {
     }
 
     var showClearVoicesDialog by remember { mutableStateOf(false) }
+    var showClearSpeechDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     fun recalculateSizes() {
         voiceBytes = File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        speechBytes = OfflineSpeech.getModelSizeBytes(context)
         cacheBytes = context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
         historyBytes = ReadingHistory.sizeBytes(context)
     }
@@ -1485,9 +1772,15 @@ private fun SettingsStorage(onBack: () -> Unit) {
                         isHighlight = true
                     )
                     StorageStatRow(
-                        label = "Dados de vozes instaladas",
+                        label = "Dados de vozes instaladas (TTS)",
                         value = "${String.format(Locale.US, "%.1f", voiceMb)} MB"
                     )
+                    if (speechBytes > 0) {
+                        StorageStatRow(
+                            label = "Modelo de transcrição (Whisper STT)",
+                            value = "${String.format(Locale.US, "%.1f", speechMb)} MB"
+                        )
+                    }
                     StorageStatRow(
                         label = "Textos guardados no histórico",
                         value = "${String.format(Locale.US, "%.2f", historyMb)} MB"
@@ -1532,13 +1825,24 @@ private fun SettingsStorage(onBack: () -> Unit) {
 
                 // Action 1: Delete downloaded voices
                 StorageActionItem(
-                    title = "Eliminar vozes transferidas",
+                    title = "Eliminar vozes transferidas (TTS)",
                     subtitle = "Libertará ${String.format(Locale.US, "%.0f", voiceMb)} MB de ficheiros descarregados",
                     subtitleColor = MaterialTheme.colorScheme.error,
                     buttonText = "Eliminar",
                     isDestructive = true,
                     onClick = { showClearVoicesDialog = true }
                 )
+
+                if (speechBytes > 0) {
+                    StorageActionItem(
+                        title = "Eliminar modelo de transcrição (STT)",
+                        subtitle = "Libertará ${String.format(Locale.US, "%.0f", speechMb)} MB do modelo Whisper",
+                        subtitleColor = MaterialTheme.colorScheme.error,
+                        buttonText = "Eliminar",
+                        isDestructive = true,
+                        onClick = { showClearSpeechDialog = true }
+                    )
+                }
 
                 // Action 2: Delete saved texts (preserves favorites!)
                 StorageActionItem(
@@ -1732,6 +2036,34 @@ private fun SettingsStorage(onBack: () -> Unit) {
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearHistoryDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        // Dialog: Confirm Delete Speech STT Model
+        if (showClearSpeechDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearSpeechDialog = false },
+                title = { Text("Eliminar modelo de transcrição?") },
+                text = {
+                    Text("O modelo de transcrição Whisper (${String.format(Locale.US, "%.0f", speechMb)} MB) será removido do dispositivo. Poderá voltar a descarregá-lo quando quiser.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            OfflineSpeech.deleteModel(context)
+                            recalculateSizes()
+                            showClearSpeechDialog = false
+                            Toast.makeText(context, "Modelo de transcrição eliminado", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearSpeechDialog = false }) {
                         Text(stringResource(R.string.cancel))
                     }
                 }

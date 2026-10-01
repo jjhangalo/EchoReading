@@ -1,70 +1,118 @@
-# Test Infrastructure Specification — EchoReading 2.0
+# Test Infrastructure Specification — EchoReading 2.0 (R1–R5)
 
 ## 1. Test Philosophy
 
-EchoReading 2.0 adopts an **opaque-box, requirement-driven testing philosophy** directly derived from the authoritative user specifications in `ORIGINAL_REQUEST.md` and architectural commitments in `PROJECT.md`.
+EchoReading 2.0 adopts a **requirements-driven, opaque-box testing philosophy** directly derived from the authoritative follow-up user specifications in `ORIGINAL_REQUEST.md` (timestamp `2026-09-30T08:53:34Z`) and architectural commitments in `PROJECT.md`.
 
 ### Core Principles
-1. **Opaque-Box Specification Conformance**: Tests validate observable behaviors, public contracts, byte-level invariants, and system integration points rather than fragile implementation details.
-2. **Authoritative Ground Truth**:
-   - For **R1 (Piper Voice Model Metadata)**: Expected outputs and Protobuf schemas are derived directly from the working bundled asset `pt_PT-tugao-medium.onnx`, the official ONNX Protocol Buffer specification (`ModelProto.metadata_props` tag `0x72`), and official Piper companion JSON schemas.
-   - For **R2 (Text Selection "Ecoar" & Quick Read)**: Expected outputs are derived from Android's `ACTION_PROCESS_TEXT` contract, window manager translucent bottom sheet specs, reactive state transitions in `ReaderState`, and background continuity contracts of `ReaderPlaybackService`.
-   - For **R3 (System Share Sheet Direct Routing)**: Expected outputs are derived from Android's `ACTION_SEND` MIME type matching, `MainActivity` singleTop task routing, text sanitization rules, and UI synchronization flows.
-3. **Zero Facade Policy**: No mock tests that trivially assert true. Every test exercises real data transforms, binary serialization/deserialization, state machine updates, file system operations, or contract parsers.
-4. **Deterministic and Self-Contained**: Each test initializes its own state, isolates temporary file operations, produces repeatable results, and cleans up artifacts upon completion.
+1. **Opaque-Box Specification Conformance**: Tests validate observable behaviors, public API contracts, audio mathematical properties, intent contracts, layout modes, state preservation invariants, and file management contracts rather than fragile implementation internals.
+2. **Authoritative Ground Truth Derivation**:
+   - **R1 (Direct In-App Voice Recording & Acoustic Quality)**: Expected sample rates (16kHz), mono channel format, 16-bit PCM normalization `[-1.0f, 1.0f]`, SNR thresholds (>= 5.0 dB tolerated for speech, < 5.0 dB noisy), clipping limits (> 5% of samples at amplitude >= 0.99f), silence thresholds (RMS < 0.005f), and minimum speech presence (>= 5% of frames).
+   - **R2 (External Audio Share Intent & Async Pipeline)**: Expected `ACTION_SEND` MIME type matching (`audio/*`), extraction of `EXTRA_STREAM` / `clipData` URIs, immediate routing to `"transcribe"`, and off-thread execution on `Dispatchers.IO`.
+   - **R3 (Navigation Structure & Material 3 Icons)**: Expected 4-tab sequence: 1. Leitura (`home`), 2. Transcrever (`transcribe`), 3. Biblioteca (`history`), 4. Definições (`settings`), and consistent Material 3 icons.
+   - **R4 (Adaptive Layout & State Persistence in Rotation)**: Expected BottomBar (`NavigationBar`) in portrait, SideBar (`NavigationRail`) in landscape, and non-destructive state retention of typed text, transcription progress, recording status, and active navigation route across orientation flips.
+   - **R5 (Voice Model Settings Management)**: Expected TTS Piper voice listing/download/deletion status, and STT Whisper offline model readiness, disk footprint, and download progress reporting.
+3. **Zero Facade Policy**: No mock tests that trivially assert true without exercising real logic. Every test exercises real mathematical DSP calculations, XML parsing, Intent validation, state machine transitions, or file system assertions.
+4. **Self-Contained & Deterministic**: Tests initialize their own state, run deterministically on the JVM without emulator dependencies, avoid cross-test interference, and clean up temporary files in `@After` lifecycle methods.
 
 ---
 
-## 2. Feature Inventory Mapping to Test Tiers
+## 2. Feature Inventory Across R1–R5
 
-The test suite is structured into four progressive tiers across all features defined in `PROJECT.md § Feature Inventory`:
-
-| Feature # | Feature Description | Milestone | Tier 1: Happy Path (>=5) | Tier 2: Boundary & Corner Cases (>=5) | Tier 3: Cross-Feature Interactions | Tier 4: Real-World Scenarios |
-|---|---|---|---|---|---|---|
-| **1** | Protobuf Metadata Injection | M1 | `VoiceModelRequirementTest` (F1.1 - F1.5) | `VoiceModelRequirementTest` (B1.1 - B1.5) | Combinations with corrupt headers & model loading | End-to-end download & playback pipeline |
-| **2** | Retroactive Model Repair | M1 | `VoiceModelRequirementTest` (F2.1 - F2.5) | `VoiceModelRequirementTest` (B2.1 - B2.5) | In-place repair on legacy disks | Legacy voice activation workflow |
-| **3** | Model File Size Check Fix | M1 | `VoiceModelRequirementTest` (F3.1 - F3.5) | `VoiceModelRequirementTest` (B3.1 - B3.5) | Re-download prevention with injected bytes | Catalog discovery & installation check |
-| **4** | Metadata Unit Testing | M1 | `VoiceModelRequirementTest` (F4.1 - F4.5) | `VoiceModelRequirementTest` (B4.1 - B4.5) | Byte-level wire validation | End-to-end model verification |
-| **5** | "Ecoar" Action Item Label | M2 | `EcoarActionRequirementTest` (F5.1 - F5.5) | `EcoarActionRequirementTest` (B5.1 - B5.5) | Process text vs Share sheet disambiguation | Browser selection to reading |
-| **6** | Translucent Floating Bottom Sheet | M2 | `EcoarActionRequirementTest` (F6.1 - F6.5) | `EcoarActionRequirementTest` (B6.1 - B6.5) | Activity theme & gravity validation | In-place overlay without switching apps |
-| **7** | Immediate Auto-Playback | M2 | `EcoarActionRequirementTest` (F7.1 - F7.5) | `EcoarActionRequirementTest` (B7.1 - B7.5) | Playback trigger on empty vs populated text | Quick listening workflow |
-| **8** | Bottom Sheet Playback Controls | M2 | `EcoarActionRequirementTest` (F8.1 - F8.5) | `EcoarActionRequirementTest` (B8.1 - B8.5) | Speed pills switching during active playback | Interactive listening session |
-| **9** | "Abrir no Leitor" Expansion | M2 | `EcoarActionRequirementTest` (F9.1 - F9.5) | `EcoarActionRequirementTest` (B9.1 - B9.5) | Expansion intent extras & flags | Transition from widget to full app |
-| **10** | Background Playback Continuity | M2 | `EcoarActionRequirementTest` (F10.1 - F10.5) | `EcoarActionRequirementTest` (B10.1 - B10.5) | Activity finish while service playing | Dismiss sheet, background playback |
-| **11** | Share Sheet Direct Routing | M3 | `ShareSheetRequirementTest` (F11.1 - F11.5) | `ShareSheetRequirementTest` (B11.1 - B11.5) | Filter isolation between MainActivity & QuickRead | Share sheet targeting |
-| **12** | Share Intent Extraction & Routing | M3 | `ShareSheetRequirementTest` (F12.1 - F12.5) | `ShareSheetRequirementTest` (B12.1 - B12.5) | Cold start vs warm start (singleTop) | Notes app to Reader workflow |
-| **13** | Reader Input State Synchronization | M3 | `ShareSheetRequirementTest` (F13.1 - F13.5) | `ShareSheetRequirementTest` (B13.1 - B13.5) | Sharing text while idle vs active reading | Shared text editing & playback |
+| Feature # | Feature Name | Requirement | Description |
+|---|---|---|---|
+| **F1** | In-App Mic Recording Button | R1 | Intuitive mic button to start/stop recording with live timer and state |
+| **F2** | Native AudioRecord Async Capture | R1 | 16kHz mono 16-bit PCM captured into memory asynchronously |
+| **F3** | AudioQualityChecker SNR & Distortion | R1 | Evaluates SNR (>= 5dB tolerated), rejects silence, low volume, clipping (> 5%), lack of speech |
+| **F4** | One-Tap Copy & Send to Reader | R1 | Transcription text display with one-tap clipboard copy and send-to-reader (TTS) action |
+| **F5** | RECORD_AUDIO Permission | R1 | AndroidManifest declaration and runtime permission contracts |
+| **F6** | Audio Share Intent Extraction | R2 | Extracts audio Uri from `ACTION_SEND` (`audio/*`) via `EXTRA_STREAM` or `clipData` |
+| **F7** | Immediate Transcribe Navigation | R2 | Routes `MainActivity` immediately to `"transcribe"` on both cold start and warm start |
+| **F8** | Persistent Pending Audio Uri | R2 | Retains pending audio state in `TranscriberState` to eliminate event drop |
+| **F9** | Off-Thread Audio Decoding & Query | R2 | Decodes audio and runs inference strictly on `Dispatchers.IO` without UI freezing |
+| **F10** | 4-Tab Navigation Sequence | R3 | Exact sequence: Leitura -> Transcrever -> Biblioteca -> Definições |
+| **F11** | Material 3 Consistent Icons | R3 | VolumeUp (Leitura), Mic (Transcrever), MenuBook/History (Biblioteca), Settings (Definições) |
+| **F12** | Adaptive Navigation Layout | R4 | `NavigationBar` in portrait; `NavigationRail` in landscape with main area unobstructed |
+| **F13** | Screen Rotation State Persistence | R4 | Preserves typed text, transcription progress, and route across configuration changes |
+| **F14** | TTS Piper Voice Management | R5 | Settings voice catalog, selection, download, and deletion |
+| **F15** | STT Whisper Offline Management | R5 | Settings Whisper status, disk footprint, download progress, readiness check |
 
 ---
 
-## 3. Test Architecture & Structure
+## 3. Four-Tier Test Methodology
+
+The test suite employs a 4-tier methodology:
+
+### Tier 1: Feature Coverage (Category-Partition)
+- **Minimum Threshold**: >= 5 distinct test cases per feature (F1 through F15).
+- **Technique**: Category-partition testing on valid input equivalence classes, ensuring every feature contract functions according to specification under standard operating conditions.
+
+### Tier 2: Boundary Value Analysis & Corner Cases
+- **Minimum Threshold**: >= 5 edge/boundary test cases per feature area.
+- **Technique**: Extreme values, nullability, missing extras, 0-byte inputs, boundary thresholds:
+  - *Audio*: Empty arrays, 1-sample buffers, maximum duration audio (60s+), zero SNR, negative SNR, extreme clipping (100%), boundary clipping (4.9% vs 5.1%), amplitude threshold boundaries (0.009f vs 0.011f).
+  - *Intents*: Null intent, missing extras, non-audio MIME types (`text/plain`, `image/*`), mixed-case MIME (`AUDIO/MPEG`), invalid URI schemes.
+  - *Navigation & Layout*: Extreme screen aspect ratios, orientation flips between portrait and landscape, empty text vs massive text retention.
+  - *Models*: Missing model directories, 0-byte `.onnx` files, incomplete download `.part` files, missing companion tokens.
+
+### Tier 3: Pairwise & Cross-Feature Combinations
+- **Focus**: Multi-component interactions and state transitions:
+  - Record audio in-app -> verify quality -> transcribe -> send text to reader -> trigger TTS.
+  - Share audio via `ACTION_SEND` -> rotate screen -> verify pending URI and transcription state survive.
+  - Reject poor audio (silence/distortion) -> verify clear error reported -> re-record clean audio -> successful recovery.
+  - Switch between TTS voice settings and Transcribe screen -> verify engine readiness and selection stability.
+
+### Tier 4: Real-World Application Workloads
+- **Focus**: Complete end-to-end user journeys simulating real-world production usage:
+  - *Workflow 1 (Dictation to Speech)*: User opens Transcribe, records memo, reviews quality, copies to clipboard, sends to Leitor, starts playback.
+  - *Workflow 2 (Audio Message Ingestion)*: User shares WhatsApp voice note (`audio/ogg`) into EchoReading, app opens directly on Transcribe, decodes off-thread, displays transcription.
+  - *Workflow 3 (Acoustic Quality Self-Healing)*: User records in a severely clipped/loud environment, receives instant feedback, re-records in normal environment, transcription completes.
+  - *Workflow 4 (Adaptive Multi-Tasking & Rotation)*: User begins transcription, rotates phone to landscape to read, navigates tabs, verifies no state loss.
+  - *Workflow 5 (Offline Model Setup & Execution)*: User verifies Whisper model status in Settings, checks disk footprint, transcribes audio, verifies Piper voice.
+  - *Workflow 6 (Adversarial Multi-Step Resilience)*: Rapid tab switching, invalid shares followed by valid recordings, zero crash guarantee.
+
+---
+
+## 4. Test Suite Architecture
 
 ```
 app/src/test/java/com/echoreading/e2e/
-├── VoiceModelRequirementTest.kt       # Tier 1, 2, 3 tests for R1 (Features 1-4)
-├── EcoarActionRequirementTest.kt      # Tier 1, 2, 3 tests for R2 (Features 5-10)
-├── ShareSheetRequirementTest.kt       # Tier 1, 2, 3 tests for R3 (Features 11-13)
-├── EndToEndReadingWorkflowsTest.kt    # Tier 4 real-world user workflows & multi-feature journeys
+├── AudioCaptureQualityRequirementTest.kt   # R1: Features F1–F5 (Tiers 1–3)
+├── AudioShareIntentRequirementTest.kt       # R2: Features F6–F9 (Tiers 1–3)
+├── AdaptiveNavigationRequirementTest.kt     # R3 & R4: Features F10–F13 (Tiers 1–3)
+├── VoiceModelSettingsRequirementTest.kt    # R5: Features F14–F15 (Tiers 1–3)
+├── EndToEndWorkflowsR2Test.kt              # R1–R5: Workflows 1–6 (Tier 4)
 └── testutil/
-    ├── ProtobufTestOracle.kt          # Reference Protobuf wire encoder/decoder
-    ├── IntentTestContracts.kt         # Contract evaluators for Intent actions & extras
-    └── ManifestTestParser.kt          # XML DOM parser for AndroidManifest and resource validation
+    ├── AudioTestFixtures.kt                # Waveform synthesis, DSP helpers, contract models
+    ├── IntentTestContracts.kt              # Intent extraction and share simulation
+    ├── ManifestTestParser.kt               # XML parser for AndroidManifest, strings, themes
+    └── ProtobufTestOracle.kt               # Reference Protobuf wire oracle
 ```
-
-### Execution Strategy
-- All tests execute directly on the JVM via `./gradlew testDebugUnitTest`.
-- Tests do not require physical hardware or emulators, allowing sub-second execution in CI/CD pipelines.
-- Temporary files use unique system temp directories with guaranteed cleanup in `@After` blocks.
 
 ---
 
-## 4. Coverage Thresholds & Quality Gates
+## 5. Test Execution Commands & Quality Thresholds
 
-| Metric | Target | Verification Tool |
+### Execution Commands
+- **Run Full E2E Test Suite**:
+  ```powershell
+  ./gradlew testDebugUnitTest --tests "com.echoreading.e2e.*"
+  ```
+- **Run Entire Project Unit Test Suite**:
+  ```powershell
+  ./gradlew testDebugUnitTest
+  ```
+- **Verify Clean APK Build**:
+  ```powershell
+  ./gradlew assembleDebug
+  ```
+
+### Quality Gate Thresholds
+| Metric | Threshold | Target |
 |---|---|---|
-| **Tier 1 Happy Path Coverage** | >=5 test cases per feature | JUnit 4 Suite |
-| **Tier 2 Edge/Boundary Coverage** | >=5 test cases per feature | JUnit 4 Suite |
-| **Tier 3 Combinatorial Coverage** | Cross-feature pairwise suites | JUnit 4 Suite |
-| **Tier 4 Real-World Workflows** | >=5 complete user scenarios | JUnit 4 Suite |
-| **Test Compilation & Execution** | Zero failures, zero warnings | `./gradlew testDebugUnitTest` |
-| **Application Compilation** | Clean build | `./gradlew assembleDebug` |
+| **Tier 1 Feature Coverage** | >= 5 tests per feature (F1–F15) | 100% pass |
+| **Tier 2 Boundary Tests** | >= 5 tests per feature domain | 100% pass |
+| **Tier 3 Combinatorial Tests** | Cross-feature interaction tests | 100% pass |
+| **Tier 4 Workloads** | >= 6 complete multi-step journeys | 100% pass |
+| **Test Pass Rate** | 100% | 0 failures, 0 errors, 0 skipped |
+| **Execution Duration** | Sub-second to few seconds | JVM-native, fast CI feedback |

@@ -1,67 +1,80 @@
-# Project: EchoReading 2.0 — Piper Metadata & OS Interoperability
+# Project: EchoReading 2.0 — STT Voice Recording, Audio Sharing, Adaptive Layout & Model Management
 
 ## Architecture
-EchoReading 2.0 is an Android text-to-speech reading application built with Jetpack Compose, Sherpa-ONNX, and Media3.
-- **Audio & Synthesis**: `OfflineVoice.kt` orchestrates Piper VITS ONNX model management and calls Sherpa-ONNX `OfflineTts`. Synthesized PCM audio streams are cached by `ReaderAudioCache` and queued in ExoPlayer via `ReaderPlaybackService` (`MediaSessionService`).
-- **State Management**: `ReaderState` holds global application state via reactive StateFlow `ReaderSnapshot`.
-- **UI Layer**: Jetpack Compose based `ReaderUi.kt` (screens: `ReaderHome`, `Library`, `VoiceDiscoveryScreen`, `ReaderQuickPanel`).
-- **OS Interoperability Layer**:
-  - `QuickReadActivity`: Translucent floating Bottom Sheet triggered via `android.intent.action.PROCESS_TEXT` ("Ecoar") for quick in-place listening.
-  - `MainActivity`: Standard reader application handling `android.intent.action.MAIN` and `android.intent.action.SEND` (`text/plain`) for system share sheet routing.
+EchoReading 2.0 is an offline-first Android reading and speech-to-text assistant built with Jetpack Compose, Sherpa-ONNX, and Media3.
+- **Audio & Synthesis (TTS)**: `OfflineVoice.kt` orchestrates Piper VITS ONNX model catalog and synthesis via Sherpa-ONNX `OfflineTts`.
+- **Speech-to-Text (STT)**: `OfflineSpeech.kt` orchestrates Sherpa-ONNX Whisper offline transcription.
+- **Audio Capture & Quality**: Native `AudioRecord` records 16kHz mono 16-bit PCM asynchronously directly to memory. `AudioQualityChecker` analyzes SNR, RMS, clipping/distortion, and speech presence without external bloat (`/ponytail ultra`).
+- **Audio Decoding**: `AudioDecoder.kt` decodes shared audio files to 16kHz mono PCM FloatArray strictly on `Dispatchers.IO`.
+- **State Management**: `ReaderState` and `TranscriberState` maintain UI and background engine state, persisting across configuration changes and device rotations without data loss.
+- **Adaptive UI Layer**: Jetpack Compose based `MainActivity.kt` renders an adaptive layout: `NavigationBar` (BottomBar) in portrait, `NavigationRail` (SideBar) in landscape, hosting exactly 4 destinations:
+  1. Leitura (`home`)
+  2. Transcrever (`transcribe`)
+  3. Biblioteca (`history`)
+  4. Definições (`settings`)
+- **Settings & Model Management**: `SettingsScreen.kt` provides unified management for TTS (Piper voice catalog, download, deletion) and STT (Whisper offline status, footprint, download progress, readiness).
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | Protobuf Metadata Injection | Stream and inject `sample_rate`, `model_type=vits`, `comment=piper`, `has_espeak=1` into Piper `.onnx` files upon download | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Retroactive Model Repair | Detect and repair existing downloaded Piper models on disk lacking `sample_rate` metadata before synthesis | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | Model File Size Check Fix | Update file size validation from strict equality (`==`) to `>=` to accommodate injected metadata | M1 | Survey Finding |
-| 4 | Metadata Unit Testing | Pure Kotlin unit test verifying metadata injection and integrity | M1 | ORIGINAL_REQUEST §R1 |
-| 5 | "Ecoar" Action Item Label | Register `android.intent.action.PROCESS_TEXT` with label "Ecoar" in `AndroidManifest.xml` | M2 | ORIGINAL_REQUEST §R2 |
-| 6 | Translucent Floating Bottom Sheet | Configure `QuickReadActivity` window with `Gravity.BOTTOM` and slide animations over host applications | M2 | ORIGINAL_REQUEST §R2 |
-| 7 | Immediate Auto-Playback | Trigger speech synthesis and playback immediately upon opening `QuickReadActivity` | M2 | ORIGINAL_REQUEST §R2 |
-| 8 | Bottom Sheet Playback Controls | Provide interactive Play/Pause, speed selector pills, and voice indicator in `ReaderQuickPanel` | M2 | ORIGINAL_REQUEST §R2 |
-| 9 | "Abrir no Leitor" Expansion | Action in Bottom Sheet to transition text into `MainActivity` while maintaining continuous playback | M2 | ORIGINAL_REQUEST §R2 |
-| 10 | Background Playback Continuity | Ensure `ReaderPlaybackService` continues playback if sheet is dismissed or screen is locked | M2 | ORIGINAL_REQUEST §R2 |
-| 11 | Share Sheet Direct Routing | Register `MainActivity` with `android.intent.action.SEND` (`text/plain`) in `AndroidManifest.xml` | M3 | ORIGINAL_REQUEST §R3 |
-| 12 | Share Intent Extraction & Routing | Safely extract shared text in `MainActivity` (`onCreate` and `onNewIntent`), populate reader text, and route to `"home"` | M3 | ORIGINAL_REQUEST §R3 |
-| 13 | Reader Input State Synchronization | Ensure `ReaderHome` input updates immediately upon receiving shared text in both idle and active states | M3 | Survey Finding |
-| 14 | E2E Testing Suite (Tiers 1-4) | Comprehensive opaque-box test suite for R1, R2, R3 across feature, boundary, combinatorial, and workload tiers | E2E Track | Project Pattern |
-| 15 | Build & Test Quality Verification | Ensure `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass with zero errors | M4 | ORIGINAL_REQUEST Quality |
+| 1 | In-App Mic Recording Button | Intuitive mic button on Transcribe screen to start/stop recording with live timer/state | M1 | ORIGINAL_REQUEST §R1 |
+| 2 | Native AudioRecord Async Capture | Capture 16kHz mono 16-bit PCM directly into memory on background thread with zero temp files | M1 | ORIGINAL_REQUEST §R1 |
+| 3 | AudioQualityChecker SNR & Distortion | Evaluate SNR (tolerate moderate noise >= 5dB), reject silence, inaudible audio, clipping (>5% >=0.99f), absence of voice | M1 | ORIGINAL_REQUEST §R1 |
+| 4 | One-Tap Copy & Send to Reader | Prominent transcription display with one-tap clipboard copy and send-to-reader (TTS) action | M1 | ORIGINAL_REQUEST §R1 |
+| 5 | Manifest RECORD_AUDIO Permission | Declare `android.permission.RECORD_AUDIO` and handle runtime permission gracefully | M1 | ORIGINAL_REQUEST §R1 |
+| 6 | Audio Share Intent Extraction | Extract audio Uri from `ACTION_SEND` (`audio/*`) checking `EXTRA_STREAM` and `clipData` in `ShareIntentHandler` | M2 | ORIGINAL_REQUEST §R2 |
+| 7 | Immediate Transcribe Navigation | Route `MainActivity` immediately to `"transcribe"` screen on both `onCreate` and `onNewIntent` | M2 | ORIGINAL_REQUEST §R2 |
+| 8 | Persistent Pending Audio Uri | Eliminate `SharedFlow` drop by holding pending audio state in `TranscriberState` across cold/warm start | M2 | ORIGINAL_REQUEST §R2 |
+| 9 | Off-Thread Audio Decoding & Query | Execute `contentResolver.query`, `AudioDecoder`, and Whisper inference strictly on `Dispatchers.IO` | M2 | ORIGINAL_REQUEST §R2 |
+| 10 | 4-Tab Navigation Sequence | Sequence: 1. Leitura -> 2. Transcrever -> 3. Biblioteca -> 4. Definições | M3 | ORIGINAL_REQUEST §R3 |
+| 11 | Material 3 Consistent Icons | VolumeUp (Leitura), Mic (Transcrever), MenuBook (Biblioteca), Settings (Definições) | M3 | ORIGINAL_REQUEST §R3 |
+| 12 | Adaptive Navigation Layout | `NavigationBar` in portrait; `NavigationRail` in landscape with main content unobstructed | M3 | ORIGINAL_REQUEST §R4 |
+| 13 | Screen Rotation State Persistence | Preserve typed text, transcription text/progress, recording state, and active route across orientation changes | M3 | ORIGINAL_REQUEST §R4 |
+| 14 | TTS Piper Voice Management | In Settings: list installed voices, select active voice, download from catalog, delete models | M4 | ORIGINAL_REQUEST §R5 |
+| 15 | STT Whisper Offline Management | In Settings: status indicator, disk footprint, download progress, readiness status, storage tracking | M4 | ORIGINAL_REQUEST §R5 |
+| 16 | E2E Testing Suite (Tiers 1-4) | Comprehensive opaque-box test suite for R1-R5 covering feature, boundary, pairwise, and workload scenarios | M5 | ORIGINAL_REQUEST Quality |
+| 17 | Tier 5 Adversarial Coverage Hardening | White-box stress testing, edge-case probing, and coverage hardening | M5 | Project Pattern |
+| 18 | Quality & Build Verification | `./gradlew testDebugUnitTest` and `./gradlew assembleDebug` pass 100% | M5 | ORIGINAL_REQUEST Quality |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Piper Voice Model Metadata Injection | `OnnxMetadata.kt`, `OfflineVoice.kt`, `VoiceDiscoveryScreen.kt`, `OnnxMetadataTest.kt` | none | DONE |
-| M2 | "Ecoar" Selection & Quick Bottom Sheet | `QuickReadActivity.kt`, `ReaderUi.kt` (`ReaderQuickPanel`), `strings.xml`, `themes.xml`, `AndroidManifest.xml` | none | IN_PROGRESS |
-| M3 | System Share Sheet Direct Routing | `MainActivity.kt`, `ShareIntentHandler.kt`, `ReaderState.kt`, `ReaderUi.kt`, `AndroidManifest.xml`, unit tests | none | PLANNED |
-| E2E | E2E Testing Track | Requirement-driven test suite (Tiers 1-4) and `TEST_READY.md` generation | none | DONE |
-| M4 | Final Integration, Verification & Hardening | Run 100% E2E tests, Tier 5 adversarial testing, `./gradlew testDebugUnitTest`, `./gradlew assembleDebug` | M1, M2, M3, E2E | PLANNED |
+| M1 | In-App Voice Recording & Quality Checker | `AudioQualityChecker.kt`, `TranscriberState.kt`, `AndroidManifest.xml`, unit tests | none | PLANNED |
+| M2 | External Audio Share Intent & Async Pipeline | `ShareIntentHandler.kt`, `MainActivity.kt`, `TranscriberState.kt`, unit tests | none | PLANNED |
+| M3 | Adaptive 4-Tab Navigation & UI Integration | `MainActivity.kt` (`EcoApp`), `ReaderUi.kt`, `TranscriberScreen.kt`, state persistence | M1, M2 | PLANNED |
+| M4 | Voice Model Management in Settings | `SettingsScreen.kt`, `OfflineSpeech.kt`, `OfflineVoice.kt`, `SettingsStorage` | none | PLANNED |
+| M5 | E2E Integration, Tier 5 Hardening & Verification | Full test suite execution, Tier 5 stress tests, `./gradlew testDebugUnitTest`, `./gradlew assembleDebug` | M1, M2, M3, M4 | PLANNED |
 
 ## Interface Contracts
-### `OnnxMetadata` ↔ `OfflineVoice`
-- `OnnxMetadata.injectMetadata(onnxFile: File, sampleRate: Int, numSpeakers: Int = 1)`: Appends repeated field 14 Protobuf metadata entries to `.onnx`.
-- `OnnxMetadata.hasSampleRate(onnxFile: File): Boolean`: Scans top-level fields for `metadata_props` with key `"sample_rate"`.
-- `OnnxMetadata.repairModelFile(onnxFile: File, jsonConfigFile: File? = null): Boolean`: Verifies and patches missing metadata in-place.
+### `TranscriberState` ↔ `AudioQualityChecker`
+- `AudioQualityChecker.checkQuality(samples: FloatArray, sampleRate: Int = 16000): QualityResult`
+  - `QualityResult.Passed(snrDb: Float, rms: Float)`
+  - `QualityResult.Failed(reason: String, snrDb: Float, rms: Float)`
 
-### `QuickReadActivity` ↔ `MainActivity`
-- Intent Action: `android.intent.action.VIEW` or explicit `Intent(context, MainActivity::class.java)`
-- Extra: `Intent.EXTRA_TEXT` (CharSequence/String)
-- Flags: `Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP`
-- Behavior: Expands current reading session into full reader without restarting audio playback.
+### `TranscriberState` (Recording API)
+- `TranscriberState.isRecording: StateFlow<Boolean>`
+- `TranscriberState.recordingDurationSec: StateFlow<Int>`
+- `TranscriberState.startRecording(context: Context)`
+- `TranscriberState.stopRecording(context: Context)`
+- `TranscriberState.pendingAudioUri: StateFlow<Uri?>`
 
 ### `ShareIntentHandler` ↔ `MainActivity`
-- `ShareIntentHandler.extractText(intent: Intent): String?`: Extracts text from `ACTION_SEND` with `text/plain` extra `EXTRA_TEXT`.
-- `ReaderState.loadText(context: Context, text: String)`: Emits text to `loadTextEvent: SharedFlow<String>`, resets status to IDLE, and stores draft.
+- `ShareIntentHandler.extractAudioUri(intent: Intent): Uri?`: Extracts Uri from `EXTRA_STREAM` or `clipData` when mimeType is `audio/*`.
+
+### `OfflineSpeech` (STT Model Management)
+- `OfflineSpeech.isModelInstalled(context: Context): Boolean`
+- `OfflineSpeech.getModelSizeBytes(context: Context): Long`
+- `OfflineSpeech.deleteModel(context: Context): Boolean`
+- `OfflineSpeech.downloadModel(context: Context, onProgress: (Float) -> Unit, onComplete: (Boolean) -> Unit)`
 
 ## Code Layout
-- `app/src/main/java/com/echoreading/voice/OnnxMetadata.kt`: Protobuf metadata parser, injector, and repair utilities.
-- `app/src/main/java/com/echoreading/voice/OfflineVoice.kt`: Model installation, loading, and retroactive repair hooks.
-- `app/src/main/java/com/echoreading/QuickReadActivity.kt`: Translucent Bottom Sheet activity for PROCESS_TEXT.
-- `app/src/main/java/com/echoreading/MainActivity.kt`: Main activity handling ACTION_MAIN and ACTION_SEND.
-- `app/src/main/java/com/echoreading/share/ShareIntentHandler.kt`: Helper for intent extraction and validation.
-- `app/src/main/java/com/echoreading/ReaderState.kt`: Application state and text loading flow.
-- `app/src/main/java/com/echoreading/ReaderUi.kt`: Reader UI components (`ReaderHome`, `ReaderQuickPanel`).
-- `app/src/main/res/values/strings.xml`: Localized string resources.
-- `app/src/main/res/values/themes.xml`: Window styles and dialog themes.
-- `app/src/main/AndroidManifest.xml`: Manifest component declarations and intent filters.
-- `app/src/test/java/com/echoreading/`: JVM unit tests.
+- `app/src/main/java/com/echoreading/audio/AudioQualityChecker.kt`: Quality evaluation (SNR, silence, clipping, voice presence).
+- `app/src/main/java/com/echoreading/TranscriberState.kt`: STT state, native AudioRecord capture, and transcription orchestration.
+- `app/src/main/java/com/echoreading/share/ShareIntentHandler.kt`: Intent extraction for text and audio streams.
+- `app/src/main/java/com/echoreading/MainActivity.kt`: Main activity, adaptive layout (`NavigationBar` / `NavigationRail`), intent routing.
+- `app/src/main/java/com/echoreading/TranscriberScreen.kt`: STT UI, mic record button, copy and send-to-reader actions.
+- `app/src/main/java/com/echoreading/SettingsScreen.kt`: TTS and STT voice model configuration and storage overview.
+- `app/src/main/java/com/echoreading/voice/OfflineSpeech.kt`: Sherpa-ONNX Whisper model installation and inference.
+- `app/src/main/java/com/echoreading/voice/OfflineVoice.kt`: Piper TTS model catalog, installation, and repair.
+- `app/src/main/AndroidManifest.xml`: Permissions (`RECORD_AUDIO`), intent filters (`ACTION_SEND` audio/* & text/plain).
+- `app/src/test/java/com/echoreading/`: Comprehensive JVM unit tests.

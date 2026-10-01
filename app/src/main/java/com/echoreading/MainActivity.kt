@@ -51,9 +51,15 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
         val action = intent.action
         if (action == Intent.ACTION_SEND) {
-            val sharedText = ShareIntentHandler.extractText(intent)
-            if (!sharedText.isNullOrBlank()) {
-                ReaderState.loadText(this, sharedText)
+            val audioUri = ShareIntentHandler.extractAudioUri(intent)
+            if (audioUri != null) {
+                com.echoreading.speech.TranscriberState.pendingAudioUri.value = audioUri
+                com.echoreading.speech.TranscriberState.loadAudioEvent.tryEmit(audioUri)
+            } else {
+                val sharedText = ShareIntentHandler.extractText(intent)
+                if (!sharedText.isNullOrBlank()) {
+                    ReaderState.loadText(this, sharedText)
+                }
             }
         } else if (action == Intent.ACTION_VIEW) {
             val viewText = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()

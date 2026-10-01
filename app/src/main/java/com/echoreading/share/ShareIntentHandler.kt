@@ -1,6 +1,7 @@
 package com.echoreading.share
 
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 
 object ShareIntentHandler {
@@ -9,6 +10,7 @@ object ShareIntentHandler {
     const val MIME_TYPE_TEXT_PLAIN = "text/plain"
     const val MIME_TYPE_TEXT_WILDCARD = "text/*"
     const val MIME_TYPE_TEXT_PREFIX = "text/"
+    const val MIME_TYPE_AUDIO_PREFIX = "audio/"
 
     /**
      * Requirement R3: Evaluates and extracts plain text from system share sheet intents (ACTION_SEND).
@@ -43,6 +45,33 @@ object ShareIntentHandler {
             extractText(action, mimeType, extraText)
         } catch (e: Exception) {
             Log.w("ShareIntentHandler", "Failed to extract text from untrusted intent", e)
+            null
+        }
+    }
+
+    /**
+     * Extrai o Uri de um ficheiro de áudio partilhado via ACTION_SEND.
+     */
+    fun extractAudioUri(action: String?, mimeType: String?, streamUri: Uri?): Uri? {
+        if (action != ACTION_SEND) return null
+        if (mimeType == null || !mimeType.startsWith(MIME_TYPE_AUDIO_PREFIX)) return null
+        return streamUri
+    }
+
+    fun extractAudioUri(intent: Intent?): Uri? {
+        if (intent == null) return null
+        return try {
+            val action = intent.action
+            val mimeType = intent.type
+            val streamUri = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            }
+            extractAudioUri(action, mimeType, streamUri)
+        } catch (e: Exception) {
+            Log.w("ShareIntentHandler", "Failed to extract audio URI", e)
             null
         }
     }

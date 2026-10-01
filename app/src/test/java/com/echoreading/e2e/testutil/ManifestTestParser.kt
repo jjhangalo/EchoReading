@@ -146,4 +146,22 @@ object ManifestTestParser {
         }
         return items
     }
+
+    fun parsePermissions(): List<String> {
+        if (!manifestFile.isFile) return emptyList()
+        val factory = DocumentBuilderFactory.newInstance()
+        val builder = factory.newDocumentBuilder()
+        val doc = builder.parse(manifestFile)
+        val permissions = mutableListOf<String>()
+
+        val permNodes = doc.getElementsByTagName("uses-permission")
+        for (i in 0 until permNodes.length) {
+            val el = permNodes.item(i) as? Element ?: continue
+            val name = el.getAttribute("android:name")
+            if (name.isNotEmpty()) {
+                permissions.add(name)
+            }
+        }
+        return permissions
+    }
 }
