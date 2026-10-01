@@ -1,5 +1,7 @@
 *~
 *.iml
+*.zip
+./**/*.zip
 .gradle
 /local.properties
 .idea/
