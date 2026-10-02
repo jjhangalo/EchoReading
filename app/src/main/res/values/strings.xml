@@ -1,62 +1,133 @@
 <resources>
-    <string name="app_name">Echo Reading</string>
-    <string name="welcome_user">Welcome back\ </string>
+    <string name="app_name">Eco Leitura</string>
+    <string name="action_ecoar">Ecoar</string>
+    <string name="open_in_reader">Abrir no Leitor</string>
+    <string name="read_aloud">Ler em voz alta</string>
+    <string name="reading">Leitura</string>
+    <string name="read_text_hint">Escreve ou cola aqui o texto a ler</string>
+    <string name="choose_voice">Voz</string>
+    <string name="download_voice">Descarregar</string>
+    <string name="download_failed">Falha ao descarregar a voz. Verifica a ligação.</string>
+    <string name="speech_speed">Velocidade</string>
+    <string name="start_reading">Começar a ler</string>
+    <string name="pause_reading">Pausar</string>
+    <string name="resume_reading">Retomar</string>
+    <string name="rewind_ten">Retroceder 10 s</string>
+    <string name="forward_ten">Avançar 10 s</string>
+    <string name="stop_reading">Parar</string>
+    <string name="reset_reading">Repor</string>
+    <string name="close_panel">Fechar</string>
+    <string name="preparing_audio">A preparar áudio…</string>
+    <string name="reading_error">Não foi possível preparar a leitura.</string>
+    <string name="offline_voice">Voz offline incluída</string>
 
-    <!-- Login activity strings -->
-    <string name="login_welcome">Hi, there! Login to continue</string>
-    <string name="email_field_hint">Email</string>
-    <string name="password_field_hint">Password</string>
-    <string name="login_button">Login</string>
-    <string name="login_with_google">Login with Google</string>
-    <string name="register_new_user">Register</string>
-    <string name="guest_login">Guest</string>
+    <!-- Navigation tabs -->
+    <string name="tab_home">Leitura</string>
+    <string name="tab_history">Biblioteca</string>
+    <string name="tab_settings">Definições</string>
 
-    <!-- Register activity strings -->
-    <string name="register_welcome">Welcome to Echo Reading</string>
-    <string name="create_profile">Create a new profile</string>
-    <string name="name_field_hint">Full name</string>
-    <string name="email_hint">E-mail address</string>
-    <string name="username_hint">Username</string>
-    <string name="confirm_password_field">Confirm password</string>
-    <string name="register_button">Register</string>
-    <string name="login__reg__button">Have an account? Login</string>
-    <string name="user_created">Novo perfil criado com sucesso</string>
+    <!-- Home screen enhancements -->
+    <string name="paste_text">Colar</string>
+    <string name="clear_text">Limpar</string>
+    <string name="reproducer_title">Reprodutor de Voz</string>
+    <string name="stats_format">%1$d palavras · %2$d caracteres · ~%3$dm%4$02ds</string>
+    <string name="tts_engine_active">Motor TTS Ativo</string>
+    <string name="voice_synthetic">Voz Sintética</string>
 
-    <!-- Error messages -->
-    <string name="empty_field">This field cannot be empty</string>
-    <string name="short_password">Password too short</string>
-    <string name="no_number">Passwords must have at least one number</string>
-    <string name="not_match_password">Password doesn\'t match</string>
-    <string name="too_long_username">Username too long</string>
-    <string name="no_white_space">White space no allowed</string>
-    <string name="invalid_email">Invalid e-mail address</string>
-    <string name="weak_password">Password too weak</string>
-    <string name="database_error">Error trying to register</string>
-    <string name="network_error">Network error! Connect to the internet or try again later </string>
-    <string name="email_already_in_use">This email is already in use by another account</string>
-    <string name="email_in_use">Email already registered</string>
-    <string name="wrong_password">Wrong password</string>
-    <string name="no_email_found">This is email is not registered</string>
+    <!-- History screen -->
+    <string name="history_count">%d textos gravados localmente</string>
+    <string name="history_count_filtered">%1$d de %2$d textos encontrados</string>
+    <string name="history_banner_tip">Toque num item para carregar o texto no reprodutor</string>
+    <string name="search_hint">Pesquisar nos textos…</string>
+    <string name="filter_all">Todos</string>
+    <string name="filter_short">Curtos</string>
+    <string name="filter_long">Longos</string>
+    <string name="filter_favorites">Favoritos</string>
+    <string name="keep_saved">Manter guardado</string>
+    <string name="remove_favorite">Remover dos favoritos</string>
+    <string name="copy_text">Copiar texto</string>
+    <string name="text_copied">Texto copiado para a área de transferência</string>
+    <string name="delete_entry">Eliminar</string>
+    <string name="load_to_reader">Carregar no Leitor</string>
+    <string name="see_more">Ver mais</string>
+    <string name="see_less">Ver menos</string>
+    <string name="clear_history">Limpar Todo o Histórico</string>
+    <string name="clear_confirm_title">Limpar histórico?</string>
+    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os mantidos como favoritos.</string>
+    <string name="empty_history">Nenhum texto encontrado</string>
+    <string name="date_filter_title">Filtrar por Data</string>
+    <string name="date_mode_single">Dia único</string>
+    <string name="date_mode_range">Intervalo</string>
+    <string name="date_select_day">Selecionar dia</string>
+    <string name="date_start">Data inicial</string>
+    <string name="date_end">Data final</string>
+    <string name="date_today">Hoje</string>
+    <string name="apply_filter">Aplicar</string>
+    <string name="clear_filter">Limpar</string>
 
-    <!-- Home activity strings -->
-    <string name="speak_input_text">Type here</string>
-    <string name="speak_button_desc">Read aloud</string>
+    <!-- Settings screen -->
+    <string name="settings_title">Configurações Gerais</string>
+    <string name="settings_subtitle">Personalize o sintetizador, interface e armazenamento</string>
+    <string name="settings_theme">Personalização</string>
+    <string name="settings_theme_sub">Gestão de tema claro/escuro e cores dinâmicas do sistema</string>
+    <string name="settings_voice">Voz</string>
+    <string name="settings_voice_sub">Vozes neurais, downloads de pacotes de fala e velocidade</string>
+    <string name="settings_storage">Armazenamento e Privacidade</string>
+    <string name="settings_storage_sub">Gestão de dados locais, resumo de armazenamento e limpeza</string>
+    <string name="theme_mode">Modo do Tema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+    <string name="theme_system">Sistema</string>
+    <string name="dynamic_colors">Cores dinâmicas (Material You)</string>
+    <string name="dynamic_colors_sub">Harmonizar a paleta com o fundo do seu ecrã inicial Android</string>
+    <string name="voices_on_device">No Dispositivo</string>
+    <string name="voices_installed_count">%1$d vozes • %2$s MB</string>
+    <string name="download_available">Disponível para Transferência</string>
+    <string name="voice_speed_tuning">Afinação de Velocidade</string>
+    <string name="delete_downloaded_voices">Eliminar vozes transferidas</string>
+    <string name="delete_saved_texts">Eliminar textos salvos (excepto favoritos)</string>
+    <string name="delete_cache">Eliminar cache de áudio</string>
+    <string name="save_history_toggle">Guardar Histórico de Leituras</string>
+    <string name="save_history_sub">Salvar textos automaticamente no armazenamento local para reutilização</string>
+    <string name="privacy_title">Privacidade Local e Sem Rastreio</string>
+    <string name="privacy_body">Todos os dados e textos permanecem exclusivamente no armazenamento local do dispositivo. Nenhum dado é enviado para servidores externos.</string>
+    <string name="cancel">Cancelar</string>
+    <string name="engine_version_info">Eco Leitura Motor v2.0.1 — Sintetizador neural ativo offline com privacidade protegida</string>
+    <!-- Notification controls -->
+    <string name="reading_status_channel">Estado da Leitura</string>
+    <string name="reading_complete_title">Leitura Concluída</string>
+    <string name="reading_complete_body">O texto foi lido na totalidade.</string>
+    <string name="reading_error_title">Erro de Leitura</string>
+    <string name="notification_permission_rationale">Permita notificações para controlar a reprodução fora da app.</string>
 
-    <!-- Menu strings -->
-    <string name="settings">Settings</string>
-    <string name="profile">My profile</string>
-    <string name="logout">Logout</string>
-    <string name="delete_account">Delete account</string>
-    <string name="delete_success">Your account was deleted</string>
-
-    <!-- Action strings -->
-    <string name="settings_label">Settings</string>
-    <string name="profile_label">Me</string>
-    <string name="user_profile_picture">Profile picture</string>
-    <string name="update_button">Update</string>
-    <string name="changes_applied_successfully">User updated successfully</string>
-    <string name="changes_failed">Error trying to update the profile</string>
-    <string name="null_user_disclaimer">As you haven\'t logged in, you need to login to see you profile data</string>
-    <string name="get_data_error">Connect to the internet to see and edit your data</string>
-    <string name="no_user_found">There is no user associated to this email</string>
+    <string name="tab_transcribe">Transcrever</string>
+    <string name="transcribe_title">Transcrição de Áudio</string>
+    <string name="transcribe_select_audio">Selecionar Áudio</string>
+    <string name="transcribe_supported_formats">MP3, WAV, OGG, M4A, FLAC, AAC, OPUS</string>
+    <string name="transcribe_or_share">ou partilhe de outra aplicação</string>
+    <string name="transcribe_decoding">A descodificar áudio…</string>
+    <string name="transcribe_checking_quality">A verificar qualidade…</string>
+    <string name="transcribe_in_progress">A transcrever…</string>
+    <string name="transcribe_done">Transcrição concluída</string>
+    <string name="transcribe_copy">Copiar</string>
+    <string name="transcribe_share">Partilhar</string>
+    <string name="transcribe_listen">Ouvir no Leitor</string>
+    <string name="transcribe_error_noisy">Áudio com demasiado ruído de fundo. Tente com um áudio mais limpo.</string>
+    <string name="transcribe_error_silent">O áudio está em silêncio. Verifique o ficheiro.</string>
+    <string name="transcribe_error_no_speech">Não foi detetada fala suficiente no áudio.</string>
+    <string name="transcribe_error_low_volume">Volume do áudio demasiado baixo.</string>
+    <string name="transcribe_error_clipped">Áudio com distorção ou volume excessivo. Fale um pouco mais afastado do microfone.</string>
+    <string name="transcribe_model_download">A descarregar modelo de transcrição…</string>
+    <string name="transcribe_model_required">É necessário descarregar o modelo de transcrição (~150 MB) para utilizar esta funcionalidade.</string>
+    <string name="transcribe_model_download_btn">Descarregar Modelo</string>
+    <string name="transcribe_record_voice">Gravar Voz</string>
+    <string name="transcribe_speak_now">Falar agora</string>
+    <string name="transcribe_stop_recording">Parar e Transcrever</string>
+    <string name="transcribe_listening">A ouvir… Fale agora para transcrever</string>
+    <string name="transcribe_select_audio_file">Ou selecionar ficheiro de áudio</string>
+    <string name="transcribe_permission_needed">Permissão de microfone necessária para gravação</string>
+    <string name="stt_model_whisper">Modelo Whisper (STT)</string>
+    <string name="stt_model_installed">Instalado e Pronto</string>
+    <string name="stt_model_not_installed">Não Instalado (~150 MB)</string>
+    <string name="stt_delete_confirm">Eliminar o modelo de transcrição Whisper do dispositivo?</string>
 </resources>

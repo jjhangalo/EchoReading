@@ -1,5 +1,7 @@
 *~
 *.iml
+*.zip
+./**/*.zip
 .gradle
 /local.properties
 .idea/
@@ -14,3 +16,12 @@
 .externalNativeBuild
 .cxx
 local.properties
+/app/build/
+/build/
+/.statem/
+.kotlin/
+.agents/
+
+# Provision these large runtime assets outside Git (release download, LFS, etc.).
+/app/src/main/jniLibs/
+/app/src/main/assets/vits-piper-pt_PT-tugao-medium/
