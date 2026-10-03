@@ -13,6 +13,8 @@ import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.ReadingStatus
 import com.echoreading.reader.ReaderState
 import com.echoreading.share.ShareIntentHandler
+import com.echoreading.ui.EcoApp
+import com.echoreading.ui.theme.EcoTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -79,4 +81,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-

@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.echoreading.reader.ReaderState
+import com.echoreading.ui.theme.EcoTheme
 
 class QuickReadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

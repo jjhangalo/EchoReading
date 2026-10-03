@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,15 +16,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import android.content.res.Configuration
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,39 +50,23 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -100,7 +80,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -109,10 +88,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.echoreading.reader.ReaderPlaybackService
 import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
@@ -176,306 +151,6 @@ val StitchDarkColorScheme = darkColorScheme(
     outline = Color(0xFF8E8B9E),
     outlineVariant = Color(0xFF464555),
 )
-
-@Composable
-fun EcoTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
-    var themeMode by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
-    var dynamicColors by remember { mutableStateOf(prefs.getBoolean("dynamic_colors", false)) }
-
-    DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
-            when (key) {
-                "theme" -> themeMode = sp.getString("theme", "system") ?: "system"
-                "dynamic_colors" -> dynamicColors = sp.getBoolean("dynamic_colors", false)
-            }
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-
-    val isDark = when (themeMode) {
-        "light" -> false
-        "dark" -> true
-        else -> isSystemInDarkTheme()
-    }
-
-    val colorScheme = when {
-        dynamicColors && isDark -> dynamicDarkColorScheme(context)
-        dynamicColors && !isDark -> dynamicLightColorScheme(context)
-        isDark -> StitchDarkColorScheme
-        else -> StitchLightColorScheme
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content,
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EcoApp() {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: "home"
-
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-    LaunchedEffect(Unit) {
-        ReaderState.loadTextEvent.collect {
-            if (currentRoute != "home") {
-                navController.navigate("home") {
-                    popUpTo("home") { inclusive = true }
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        com.echoreading.speech.TranscriberState.loadAudioEvent.collect {
-            if (currentRoute != "transcribe") {
-                navController.navigate("transcribe") {
-                    popUpTo("home")
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        com.echoreading.speech.TranscriberState.pendingAudioUri.collect { uri ->
-            if (uri != null && currentRoute != "transcribe") {
-                navController.navigate("transcribe") {
-                    popUpTo("home")
-                    launchSingleTop = true
-                }
-            }
-        }
-    }
-
-    val topBar = @Composable {
-        TopAppBar(
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            "ECHO READING",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                            ),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            when (currentRoute) {
-                                "history" -> "Biblioteca"
-                                "settings" -> "Definições"
-                                "transcribe" -> "Transcrever"
-                                else -> "Leitura"
-                            },
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-            )
-        )
-    }
-
-    val navContent = @Composable { padding: androidx.compose.foundation.layout.PaddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = "home",
-            modifier = Modifier.padding(padding)
-        ) {
-            composable("home") { ReaderHome() }
-            composable("transcribe") { TranscriberScreen() }
-            composable("history") { HistoryScreen(navController) }
-            composable("settings") { SettingsScreen() }
-        }
-    }
-
-    if (isLandscape) {
-        Row(Modifier.fillMaxSize()) {
-            NavigationRail(
-                containerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxHeight()
-            ) {
-                Spacer(Modifier.height(8.dp))
-                NavigationRailItem(
-                    selected = currentRoute == "home",
-                    onClick = {
-                        navController.navigate("home") {
-                            popUpTo("home") { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_home)) },
-                    colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                    )
-                )
-                NavigationRailItem(
-                    selected = currentRoute == "transcribe",
-                    onClick = {
-                        navController.navigate("transcribe") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_transcribe)) },
-                    colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                    )
-                )
-                NavigationRailItem(
-                    selected = currentRoute == "history",
-                    onClick = {
-                        navController.navigate("history") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.MenuBook, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_history)) },
-                    colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                    )
-                )
-                NavigationRailItem(
-                    selected = currentRoute == "settings",
-                    onClick = {
-                        navController.navigate("settings") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.tab_settings)) },
-                    colors = NavigationRailItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                    )
-                )
-            }
-            Scaffold(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                topBar = topBar,
-            ) { padding ->
-                navContent(padding)
-            }
-        }
-    } else {
-        Scaffold(
-            topBar = topBar,
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp
-                ) {
-                    NavigationBarItem(
-                        selected = currentRoute == "home",
-                        onClick = {
-                            navController.navigate("home") {
-                                popUpTo("home") { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        icon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_home)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == "transcribe",
-                        onClick = {
-                            navController.navigate("transcribe") {
-                                popUpTo("home")
-                                launchSingleTop = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_transcribe)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == "history",
-                        onClick = {
-                            navController.navigate("history") {
-                                popUpTo("home")
-                                launchSingleTop = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.MenuBook, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_history)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == "settings",
-                        onClick = {
-                            navController.navigate("settings") {
-                                popUpTo("home")
-                                launchSingleTop = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_settings)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                        )
-                    )
-                }
-            },
-        ) { padding ->
-            navContent(padding)
-        }
-    }
-}
 
 @Composable
 fun ReaderHome() {
