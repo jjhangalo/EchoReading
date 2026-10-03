@@ -1,23 +1,23 @@
 <resources>
     <string name="app_name">Eco Leitura</string>
-    <string name="action_ecoar">Ecoar</string>
+    <string name="action_echo">Ecoar</string>
     <string name="open_in_reader">Abrir no Leitor</string>
     <string name="read_aloud">Ler em voz alta</string>
     <string name="reading">Leitura</string>
     <string name="read_text_hint">Escreve ou cola aqui o texto a ler</string>
     <string name="choose_voice">Voz</string>
-    <string name="download_voice">Descarregar</string>
-    <string name="download_failed">Falha ao descarregar a voz. Verifica a ligação.</string>
+    <string name="download_voice">Transferir</string>
+    <string name="download_failed">Falha ao transferir a voz. Verifica a ligação e tente novamente.</string>
     <string name="speech_speed">Velocidade</string>
     <string name="start_reading">Começar a ler</string>
     <string name="pause_reading">Pausar</string>
     <string name="resume_reading">Retomar</string>
-    <string name="rewind_ten">Retroceder 10 s</string>
+    <string name="rewind_ten">Recuar 10 s</string>
     <string name="forward_ten">Avançar 10 s</string>
     <string name="stop_reading">Parar</string>
     <string name="reset_reading">Repor</string>
     <string name="close_panel">Fechar</string>
-    <string name="preparing_audio">A preparar áudio…</string>
+    <string name="preparing_audio">A preparar o áudio…</string>
     <string name="reading_error">Não foi possível preparar a leitura.</string>
     <string name="offline_voice">Voz offline incluída</string>
 
@@ -53,7 +53,7 @@
     <string name="see_less">Ver menos</string>
     <string name="clear_history">Limpar Todo o Histórico</string>
     <string name="clear_confirm_title">Limpar histórico?</string>
-    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os mantidos como favoritos.</string>
+    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os favoritos.</string>
     <string name="empty_history">Nenhum texto encontrado</string>
     <string name="date_filter_title">Filtrar por Data</string>
     <string name="date_mode_single">Dia único</string>
@@ -78,7 +78,7 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
     <string name="theme_system">Sistema</string>
-    <string name="dynamic_colors">Cores dinâmicas (Material You)</string>
+    <string name="dynamic_colors">Cores dinâmicas</string>
     <string name="dynamic_colors_sub">Harmonizar a paleta com o fundo do seu ecrã inicial Android</string>
     <string name="voices_on_device">No Dispositivo</string>
     <string name="voices_installed_count">%1$d vozes • %2$s MB</string>
@@ -92,7 +92,7 @@
     <string name="privacy_title">Privacidade Local e Sem Rastreio</string>
     <string name="privacy_body">Todos os dados e textos permanecem exclusivamente no armazenamento local do dispositivo. Nenhum dado é enviado para servidores externos.</string>
     <string name="cancel">Cancelar</string>
-    <string name="engine_version_info">Eco Leitura Motor v2.0.1 — Sintetizador neural ativo offline com privacidade protegida</string>
+    <string name="engine_version_info">Eco Leitura Motor v2.1.2 — Sintetizador neural ativo offline com privacidade protegida</string>
     <!-- Notification controls -->
     <string name="reading_status_channel">Estado da Leitura</string>
     <string name="reading_complete_title">Leitura Concluída</string>
