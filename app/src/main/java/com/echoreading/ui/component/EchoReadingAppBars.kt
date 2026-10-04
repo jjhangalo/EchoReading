@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
@@ -48,7 +48,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.util.Log
 import com.echoreading.R
 import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
@@ -151,7 +150,7 @@ fun EchoReadingBottomAppBar(
         NavigationBarItem(
             selected = currentRoute == "history",
             onClick = { onNavigate("history") },
-            icon = { Icon(Icons.Default.MenuBook, contentDescription = null) },
+            icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
             label = { Text(stringResource(R.string.tab_history)) },
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = colorScheme.primaryContainer.copy(alpha = 0.25f),
