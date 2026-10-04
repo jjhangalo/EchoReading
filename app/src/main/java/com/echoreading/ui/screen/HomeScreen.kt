@@ -1,19 +1,12 @@
-package com.echoreading
+package com.echoreading.ui.screen
 
 import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,24 +18,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -51,11 +38,8 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -64,16 +48,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,76 +61,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.echoreading.ui.component.SoundWave
 import com.echoreading.reader.ReaderPlaybackService
-import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
 import com.echoreading.reader.ReadingStatus
-import com.echoreading.voice.OfflineVoice
+import com.echoreading.ui.component.StitchStatusVoiceBar
+import com.echoreading.util.formatTime
+import com.echoreading.util.sendCommand
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.Locale
-
-// Exact Material Design 3 Palette from Stitch DESIGN.md
-val StitchLightColorScheme = lightColorScheme(
-    primary = Color(0xFF3525CD),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF4F46E5),
-    onPrimaryContainer = Color(0xFFDAD7FF),
-    secondary = Color(0xFF712AE2),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFF8A4CFC),
-    onSecondaryContainer = Color(0xFFFFFBFF),
-    tertiary = Color(0xFF00505F),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFF006A7C),
-    onTertiaryContainer = Color(0xFF93E8FF),
-    background = Color(0xFFFCF8FF),
-    onBackground = Color(0xFF1A1A2A),
-    surface = Color(0xFFFCF8FF),
-    onSurface = Color(0xFF1A1A2A),
-    surfaceVariant = Color(0xFFE3E0F7),
-    onSurfaceVariant = Color(0xFF464555),
-    surfaceContainer = Color(0xFFEFECFF),
-    surfaceContainerLow = Color(0xFFF5F2FF),
-    surfaceContainerHigh = Color(0xFFE8E6FC),
-    surfaceContainerHighest = Color(0xFFE3E0F7),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    outline = Color(0xFF777587),
-    outlineVariant = Color(0xFFC7C4D8),
-)
-
-val StitchDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFC3C0FF),
-    onPrimary = Color(0xFF0F0069),
-    primaryContainer = Color(0xFF4F46E5),
-    onPrimaryContainer = Color(0xFFDAD7FF),
-    secondary = Color(0xFFD2BBFF),
-    onSecondary = Color(0xFF25005A),
-    secondaryContainer = Color(0xFF712AE2),
-    onSecondaryContainer = Color(0xFFFFFBFF),
-    tertiary = Color(0xFF4CD7F6),
-    onTertiary = Color(0xFF001F26),
-    background = Color(0xFF141422),
-    onBackground = Color(0xFFFCF8FF),
-    surface = Color(0xFF1A1A2A),
-    onSurface = Color(0xFFFCF8FF),
-    surfaceVariant = Color(0xFF333348),
-    onSurfaceVariant = Color(0xFFC7C4D8),
-    surfaceContainer = Color(0xFF252538),
-    surfaceContainerLow = Color(0xFF1F1F30),
-    surfaceContainerHigh = Color(0xFF2C2C40),
-    surfaceContainerHighest = Color(0xFF333348),
-    surfaceContainerLowest = Color(0xFF141422),
-    outline = Color(0xFF8E8B9E),
-    outlineVariant = Color(0xFF464555),
-)
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun ReaderHome() {
@@ -174,7 +100,7 @@ fun ReaderHome() {
     }
 
     LaunchedEffect(input.text) {
-        delay(500)
+        delay(500.milliseconds)
         context.getSharedPreferences("reading", Context.MODE_PRIVATE)
             .edit().putString("draft", input.text).apply()
     }
@@ -186,7 +112,14 @@ fun ReaderHome() {
             input = TextFieldValue(snapshot.text)
         }
         if (snapshot.text == input.text) {
-            input = input.copy(selection = TextRange(snapshot.characterOffset.coerceIn(0, input.text.length)))
+            input = input.copy(
+                selection = TextRange(
+                    snapshot.characterOffset.coerceIn(
+                        0,
+                        input.text.length
+                    )
+                )
+            )
         }
     }
 
@@ -209,7 +142,7 @@ fun ReaderHome() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
                 ),
@@ -250,8 +183,11 @@ fun ReaderHome() {
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.surfaceContainer,
                                 modifier = Modifier.clickable(enabled = editable) {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                    val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+                                    val clipboard =
+                                        context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    val clipText =
+                                        clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
+                                            .orEmpty()
                                     if (clipText.isNotBlank()) input = TextFieldValue(clipText)
                                 }
                             ) {
@@ -281,7 +217,9 @@ fun ReaderHome() {
                                     color = MaterialTheme.colorScheme.surfaceContainer,
                                     modifier = Modifier
                                         .size(32.dp)
-                                        .clickable(enabled = editable) { input = TextFieldValue("") }
+                                        .clickable(enabled = editable) {
+                                            input = TextFieldValue("")
+                                        }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
@@ -298,7 +236,7 @@ fun ReaderHome() {
 
                     // Text input container with soft surfaceContainerLow background
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -330,7 +268,8 @@ fun ReaderHome() {
 
                     // Footnote: stats counter & estimated duration
                     val words = remember(input.text) {
-                        if (input.text.isBlank()) 0 else input.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+                        if (input.text.isBlank()) 0 else input.text.split("\\s+".toRegex())
+                            .count { it.isNotBlank() }
                     }
                     val chars = input.text.length
                     val estSeconds = remember(words, snapshot.speed) {
@@ -381,9 +320,9 @@ fun ReaderHome() {
                     .border(
                         1.dp,
                         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                        RoundedCornerShape(20.dp)
+                        androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
                     ),
-                shape = RoundedCornerShape(20.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 ),
@@ -433,7 +372,7 @@ fun ReaderHome() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            StitchWaveformPill(isPlaying = snapshot.status == ReadingStatus.PLAYING)
+                            SoundWave(isPlaying = snapshot.status == ReadingStatus.PLAYING)
 
                             Surface(
                                 shape = CircleShape,
@@ -454,13 +393,19 @@ fun ReaderHome() {
 
                     // Progress Bar / Scrubber & Time
                     val hasDuration = snapshot.durationMs > 0
-                    val progress = if (hasDuration) (snapshot.positionMs.toFloat() / snapshot.durationMs).coerceIn(0f, 1f) else 0f
+                    val progress =
+                        if (hasDuration) (snapshot.positionMs.toFloat() / snapshot.durationMs).coerceIn(
+                            0f,
+                            1f
+                        ) else 0f
 
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Slider(
                             value = progress,
                             onValueChange = { /* scrubbing preview */ },
-                            modifier = Modifier.fillMaxWidth().height(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(16.dp),
                             colors = SliderDefaults.colors(
                                 thumbColor = MaterialTheme.colorScheme.primary,
                                 activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -469,7 +414,9 @@ fun ReaderHome() {
                         )
 
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -510,7 +457,7 @@ fun ReaderHome() {
 
                     // Transport Bar Container (Soft surfaceContainer pill containing all 5 transport controls)
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -527,7 +474,12 @@ fun ReaderHome() {
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .clickable { sendCommand(context, ReaderPlaybackService.ACTION_STOP) }
+                                    .clickable {
+                                        sendCommand(
+                                            context,
+                                            ReaderPlaybackService.ACTION_STOP
+                                        )
+                                    }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
@@ -545,7 +497,12 @@ fun ReaderHome() {
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .clickable { sendCommand(context, ReaderPlaybackService.ACTION_BACK) }
+                                    .clickable {
+                                        sendCommand(
+                                            context,
+                                            ReaderPlaybackService.ACTION_BACK
+                                        )
+                                    }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
@@ -567,8 +524,8 @@ fun ReaderHome() {
                                     .size(64.dp)
                                     .clickable {
                                         val active = snapshot.status == ReadingStatus.PLAYING ||
-                                            snapshot.status == ReadingStatus.PREPARING ||
-                                            snapshot.status == ReadingStatus.PAUSED
+                                                snapshot.status == ReadingStatus.PREPARING ||
+                                                snapshot.status == ReadingStatus.PAUSED
                                         val isPause = active && isPlaying
 
                                         // Ask for notification permission just-in-time before Play (not on Pause)
@@ -583,7 +540,11 @@ fun ReaderHome() {
 
                                         if (!active) {
                                             if (input.text.isNotBlank()) {
-                                                sendCommand(context, ReaderPlaybackService.ACTION_READ, input.text)
+                                                sendCommand(
+                                                    context,
+                                                    ReaderPlaybackService.ACTION_READ,
+                                                    input.text
+                                                )
                                             }
                                         } else {
                                             sendCommand(
@@ -610,7 +571,12 @@ fun ReaderHome() {
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .clickable { sendCommand(context, ReaderPlaybackService.ACTION_FORWARD) }
+                                    .clickable {
+                                        sendCommand(
+                                            context,
+                                            ReaderPlaybackService.ACTION_FORWARD
+                                        )
+                                    }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
@@ -629,8 +595,13 @@ fun ReaderHome() {
                                 modifier = Modifier
                                     .size(48.dp)
                                     .clickable {
-                                        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                                        audio?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
+                                        val audio =
+                                            context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                                        audio?.adjustStreamVolume(
+                                            AudioManager.STREAM_MUSIC,
+                                            AudioManager.ADJUST_SAME,
+                                            AudioManager.FLAG_SHOW_UI
+                                        )
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -650,7 +621,7 @@ fun ReaderHome() {
             // Quick Tuning Card: Speed Pills & Voice Info
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 ),
@@ -674,7 +645,13 @@ fun ReaderHome() {
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
                         ) {
                             Text(
-                                "${String.format(Locale.US, "%.1f", snapshot.speed)}x ${if (snapshot.speed == 1.0f) "(Padrão)" else ""}",
+                                "${
+                                    String.format(
+                                        Locale.US,
+                                        "%.1f",
+                                        snapshot.speed
+                                    )
+                                }x ${if (snapshot.speed == 1.0f) "(Padrão)" else ""}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -697,7 +674,8 @@ fun ReaderHome() {
                                     .weight(1f)
                                     .height(34.dp)
                                     .clickable(enabled = editable) {
-                                        ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
+                                        ReaderState.snapshot.value =
+                                            ReaderState.snapshot.value.copy(speed = s)
                                         ReaderState.save(context)
                                     }
                             ) {
@@ -716,7 +694,9 @@ fun ReaderHome() {
 
                     // Voice Synthetic Info Row
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -742,7 +722,9 @@ fun ReaderHome() {
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(
-                                Modifier.size(6.dp).background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                                Modifier
+                                    .size(6.dp)
+                                    .background(MaterialTheme.colorScheme.tertiary, CircleShape)
                             )
                             Text(
                                 "Natural HD (Neural)",
@@ -756,7 +738,7 @@ fun ReaderHome() {
 
             // Helpful Context Hint Card from Stitch
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -769,7 +751,9 @@ fun ReaderHome() {
                         Icons.Default.Lightbulb,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(top = 2.dp)
                     )
                     Text(
                         "Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.",
@@ -781,438 +765,5 @@ fun ReaderHome() {
 
             Spacer(Modifier.height(8.dp))
         }
-    }
-}
-
-@Composable
-private fun StitchStatusVoiceBar(snapshot: ReaderSnapshot, enabled: Boolean) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    var downloading by remember { mutableStateOf<String?>(null) }
-    var progress by remember { mutableFloatStateOf(0f) }
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Status Pill: pulsing green/secondary dot + "Motor TTS Ativo"
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            shadowElevation = 1.dp
-        ) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .background(MaterialTheme.colorScheme.secondary, CircleShape)
-                )
-                Text(
-                    "Motor TTS Ativo",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Voice Pill from Stitch: graphic_eq + Voice Name • 1.0x + expand_more
-        Box {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
-                shadowElevation = 1.dp,
-                modifier = Modifier.clickable(enabled = enabled && downloading == null) { expanded = true }
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.GraphicEq,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    val shortName = OfflineVoice.option(context, snapshot.voiceId).label.split("·").lastOrNull()?.trim() ?: "Tugão"
-                    Text(
-                        "$shortName • ${String.format(Locale.US, "%.1f", snapshot.speed)}x",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Icon(
-                        Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                OfflineVoice.allVoices(context).forEach { voice ->
-                    val installed = OfflineVoice.isInstalled(context, voice)
-                    DropdownMenuItem(
-                        text = {
-                            Text(if (installed) voice.label else "${voice.label} · ${stringResource(R.string.download_voice)}")
-                        },
-                        onClick = {
-                            expanded = false
-                            if (installed) {
-                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = voice.id)
-                                ReaderState.save(context)
-                            } else {
-                                downloading = voice.id
-                                coroutineScope.launch {
-                                    try {
-                                        OfflineVoice.install(context, voice) { copied, total ->
-                                            if (total > 0) progress = copied.toFloat() / total
-                                        }
-                                        ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = voice.id)
-                                        ReaderState.save(context)
-                                    } catch (_: Exception) {
-                                    } finally {
-                                        downloading = null
-                                    }
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun StitchWaveformPill(isPlaying: Boolean, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "stitch_wave")
-    val h1 by transition.animateFloat(6f, 18f, infiniteRepeatable(tween(400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "w1")
-    val h2 by transition.animateFloat(10f, 24f, infiniteRepeatable(tween(300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "w2")
-    val h3 by transition.animateFloat(5f, 16f, infiniteRepeatable(tween(480, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "w3")
-    val h4 by transition.animateFloat(8f, 22f, infiniteRepeatable(tween(350, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "w4")
-    val h5 by transition.animateFloat(6f, 18f, infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "w5")
-
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier
-    ) {
-        Row(
-            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Box(Modifier.width(3.dp).height(if (isPlaying) h1.dp else 6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-            Box(Modifier.width(3.dp).height(if (isPlaying) h2.dp else 10.dp).background(MaterialTheme.colorScheme.secondary, RoundedCornerShape(2.dp)))
-            Box(Modifier.width(3.dp).height(if (isPlaying) h3.dp else 5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-            Box(Modifier.width(3.dp).height(if (isPlaying) h4.dp else 8.dp).background(MaterialTheme.colorScheme.secondary, RoundedCornerShape(2.dp)))
-            Box(Modifier.width(3.dp).height(if (isPlaying) h5.dp else 6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-        }
-    }
-}
-
-@Composable
-fun ReaderQuickPanel(text: String, onClose: () -> Unit) {
-    val context = LocalContext.current
-    val snapshot by ReaderState.snapshot.collectAsState()
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* no-op callback */ }
-
-    // Auto-initiate playback on launch: LaunchedEffect(text) sends ACTION_READ to ReaderPlaybackService
-    LaunchedEffect(text) {
-        if (text.isNotBlank()) {
-            val isAlreadyPlayingThis = snapshot.text == text &&
-                (snapshot.status == ReadingStatus.PLAYING ||
-                 snapshot.status == ReadingStatus.PREPARING ||
-                 snapshot.status == ReadingStatus.PAUSED)
-            if (!isAlreadyPlayingThis) {
-                sendCommand(context, ReaderPlaybackService.ACTION_READ, text)
-            }
-        }
-    }
-
-    Surface(
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // Drag handle affordance
-            Box(
-                modifier = Modifier
-                    .width(36.dp)
-                    .height(4.dp)
-                    .background(
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                        CircleShape
-                    )
-            )
-
-            // Header row with title, waveform pill and close icon
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        Modifier
-                            .size(8.dp)
-                            .background(
-                                if (snapshot.status == ReadingStatus.PLAYING) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outline,
-                                CircleShape
-                            )
-                    )
-                    Text(
-                        stringResource(R.string.action_echo),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    StitchWaveformPill(isPlaying = snapshot.status == ReadingStatus.PLAYING)
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clickable(onClick = onClose)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = stringResource(R.string.close_panel),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            // Scrollable text card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 60.dp, max = 130.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(14.dp)
-                ) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // Voice selection & status
-            StitchStatusVoiceBar(snapshot = snapshot, enabled = true)
-
-            // Transport controls (Rewind 10s, Play/Pause FAB, Forward 10s)
-            val isPlaying = snapshot.status == ReadingStatus.PLAYING
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Rewind 10s
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clickable { sendCommand(context, ReaderPlaybackService.ACTION_BACK) }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Replay10,
-                                contentDescription = stringResource(R.string.rewind_ten),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-
-                    // Play/Pause FAB responding to snapshot.status
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clickable {
-                                if (!isPlaying && ContextCompat.checkSelfPermission(
-                                        context, Manifest.permission.POST_NOTIFICATIONS
-                                    ) != PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    notificationPermissionLauncher.launch(
-                                        Manifest.permission.POST_NOTIFICATIONS
-                                    )
-                                }
-                                when (snapshot.status) {
-                                    ReadingStatus.PLAYING -> {
-                                        sendCommand(context, ReaderPlaybackService.ACTION_PAUSE)
-                                    }
-                                    ReadingStatus.PAUSED -> {
-                                        sendCommand(context, ReaderPlaybackService.ACTION_PLAY)
-                                    }
-                                    else -> {
-                                        sendCommand(context, ReaderPlaybackService.ACTION_READ, text)
-                                    }
-                                }
-                            }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) stringResource(R.string.pause_reading) else stringResource(R.string.resume_reading),
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-
-                    // Forward 10s
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clickable { sendCommand(context, ReaderPlaybackService.ACTION_FORWARD) }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Forward10,
-                                contentDescription = stringResource(R.string.forward_ten),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Speed adjustment pills (0.75x, 1.0x, 1.25x, 1.5x, 2.0x) dispatching ACTION_SPEED
-            val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                speeds.forEach { s ->
-                    val isSelected = snapshot.speed == s
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable {
-                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
-                                ReaderState.save(context)
-                                val intent = Intent(context, ReaderPlaybackService::class.java).apply {
-                                    action = ReaderPlaybackService.ACTION_SPEED
-                                    putExtra(ReaderPlaybackService.EXTRA_SPEED, s)
-                                    putExtra(ReaderPlaybackService.EXTRA_TEXT, text)
-                                    putExtra(ReaderPlaybackService.EXTRA_POSITION, snapshot.positionMs)
-                                }
-                                context.startService(intent)
-                            }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                "${s}x",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                ),
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Action button: "Abrir no Leitor" expands into MainActivity
-            Button(
-                onClick = {
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        action = Intent.ACTION_VIEW
-                        putExtra(Intent.EXTRA_TEXT, text)
-                        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }
-                    context.startActivity(intent)
-                    onClose()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.open_in_reader),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                )
-            }
-        }
-    }
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0)
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format(Locale.US, "%02d:%02d", minutes, seconds)
-}
-
-private fun sendCommand(context: Context, action: String, text: String? = null) {
-    val intent = Intent(context, ReaderPlaybackService::class.java).setAction(action)
-    if (text != null) {
-        intent.putExtra(ReaderPlaybackService.EXTRA_TEXT, text)
-        intent.putExtra(ReaderPlaybackService.EXTRA_VOICE, ReaderState.snapshot.value.voiceId)
-        intent.putExtra(ReaderPlaybackService.EXTRA_SPEED, ReaderState.snapshot.value.speed)
-    }
-    if (action == ReaderPlaybackService.ACTION_READ || action == ReaderPlaybackService.ACTION_PLAY) {
-        ContextCompat.startForegroundService(context, intent)
-    } else {
-        context.startService(intent)
     }
 }

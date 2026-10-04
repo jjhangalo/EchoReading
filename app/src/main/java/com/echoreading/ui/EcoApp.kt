@@ -14,7 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.echoreading.HistoryScreen
-import com.echoreading.ReaderHome
+import com.echoreading.ui.screen.ReaderHome
 import com.echoreading.SettingsScreen
 import com.echoreading.TranscriberScreen
 import com.echoreading.reader.ReaderState
