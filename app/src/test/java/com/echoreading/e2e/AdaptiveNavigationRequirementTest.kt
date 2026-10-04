@@ -119,34 +119,38 @@ class AdaptiveNavigationRequirementTest {
 
     @Test
     fun f12_1_portraitOrientationSelectsBottomNavigationBar() {
-        val component = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT)
+        val component =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT)
         assertEquals(AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR, component)
     }
 
     @Test
     fun f12_2_landscapeOrientationSelectsSideNavigationRail() {
-        val component = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE)
+        val component =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE)
         assertEquals(AudioTestFixtures.NavigationUiComponent.SIDE_BAR, component)
     }
 
     @Test
     fun f12_3_navigationRailFreesHorizontalSpaceInLandscape() {
         // In landscape, sidebar layout leaves central view unobstructed
-        val isSideBar = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE) ==
-            AudioTestFixtures.NavigationUiComponent.SIDE_BAR
+        val isSideBar =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE) ==
+                    AudioTestFixtures.NavigationUiComponent.SIDE_BAR
         assertTrue("Landscape must employ sidebar navigation", isSideBar)
     }
 
     @Test
     fun f12_4_bottomBarOptimizedForVerticalThumbReach() {
-        val isBottomBar = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT) ==
-            AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR
+        val isBottomBar =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT) ==
+                    AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR
         assertTrue("Portrait must employ bottom bar navigation", isBottomBar)
     }
 
     @Test
     fun f12_5_navigationComponentExhaustiveMapping() {
-        for (mode in AudioTestFixtures.OrientationMode.values()) {
+        for (mode in AudioTestFixtures.OrientationMode.entries) {
             val component = AudioTestFixtures.resolveNavigationComponent(mode)
             assertNotNull(component)
         }
@@ -255,8 +259,7 @@ class AdaptiveNavigationRequirementTest {
             isRecording = false
         )
 
-        // 10 consecutive orientation flips
-        for (i in 1..10) {
+        repeat(10) {
             state = AudioTestFixtures.simulateOrientationChange(state)
         }
 
@@ -284,7 +287,8 @@ class AdaptiveNavigationRequirementTest {
 
     @Test
     fun b3_specialCharactersAndEmojisSurviveRotation() {
-        val specialText = "Texto com símbolos: 🚀 📚 🎙️ © ® € £ § ¶ \n Quebras de linha e acentos: áéíóú çãõ"
+        val specialText =
+            "Texto com símbolos: 🚀 📚 🎙️ © ® € £ § ¶ \n Quebras de linha e acentos: áéíóú çãõ"
         val state = AudioTestFixtures.AppScreenState(
             activeRoute = "home",
             readerDraftText = specialText,
