@@ -3,11 +3,10 @@ package com.echoreading.e2e
 import com.echoreading.e2e.testutil.AudioTestFixtures
 import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
 import com.echoreading.speech.TranscriptionStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -26,13 +25,13 @@ class AdaptiveNavigationRequirementTest {
     @Before
     fun setUp() {
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     @After
     fun tearDown() {
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     // =========================================================================
@@ -179,7 +178,7 @@ class AdaptiveNavigationRequirementTest {
     @Test
     fun f13_2_transcriptionTextPersistsAcrossOrientationFlip() {
         val transcribed = "Texto transcrito durante a reunião de planeamento."
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = transcribed
         )
@@ -188,8 +187,8 @@ class AdaptiveNavigationRequirementTest {
             activeRoute = "transcribe",
             readerDraftText = "",
             readerCharOffset = 0,
-            transcriberText = TranscriberState.snapshot.value.transcribedText,
-            transcriberStatus = TranscriberState.snapshot.value.status.name,
+            transcriberText = SpeechToTextState.snapshot.value.transcribedText,
+            transcriberStatus = SpeechToTextState.snapshot.value.status.name,
             isRecording = false
         )
 
@@ -343,7 +342,7 @@ class AdaptiveNavigationRequirementTest {
     fun c1_switchTabsDuringActiveTranscriptionPreservesBothScreens() {
         // Reader has text, Transcriber has audio result
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(text = "Livro em leitura")
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = "Transcrição concluída"
         )
@@ -352,13 +351,13 @@ class AdaptiveNavigationRequirementTest {
         val currentRoute = "home"
         assertEquals("home", currentRoute)
         assertEquals("Livro em leitura", ReaderState.snapshot.value.text)
-        assertEquals("Transcrição concluída", TranscriberState.snapshot.value.transcribedText)
+        assertEquals("Transcrição concluída", SpeechToTextState.snapshot.value.transcribedText)
     }
 
     @Test
     fun c2_rotateDeviceWhileReceivingAudioSharePreservesPendingUriAndRoute() {
         val testUri = android.net.Uri.parse("content://shared/audio.mp3")
-        TranscriberState.pendingAudioUri.value = testUri
+        SpeechToTextState.pendingAudioUri.value = testUri
 
         val state = AudioTestFixtures.AppScreenState(
             activeRoute = "transcribe",
@@ -371,6 +370,6 @@ class AdaptiveNavigationRequirementTest {
 
         val rotated = AudioTestFixtures.simulateOrientationChange(state)
         assertEquals("transcribe", rotated.activeRoute)
-        assertEquals(testUri, TranscriberState.pendingAudioUri.value)
+        assertEquals(testUri, SpeechToTextState.pendingAudioUri.value)
     }
 }

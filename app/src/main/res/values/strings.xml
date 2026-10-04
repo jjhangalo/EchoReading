@@ -122,7 +122,7 @@
     <string name="transcribe_model_download_btn">Descarregar Modelo</string>
     <string name="transcribe_record_voice">Gravar Voz</string>
     <string name="transcribe_speak_now">Falar agora</string>
-    <string name="transcribe_stop_recording">Parar e Transcrever</string>
+    <string name="transcribe_stop_recording">Transcrever</string>
     <string name="transcribe_listening">A ouvir… Fale agora para transcrever</string>
     <string name="transcribe_select_audio_file">Ou selecionar ficheiro de áudio</string>
     <string name="transcribe_permission_needed">Permissão de microfone necessária para gravação</string>
@@ -130,4 +130,8 @@
     <string name="stt_model_installed">Instalado e Pronto</string>
     <string name="stt_model_not_installed">Não Instalado (~150 MB)</string>
     <string name="stt_delete_confirm">Eliminar o modelo de transcrição Whisper do dispositivo?</string>
+    <string name="home_screen_tip">Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.</string>
+    <string name="stt_screen_record_tip">Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.</string>
+    <string name="transcribe_error">Erro na Transcrição</string>
+    <string name="transcription_label">Transcrição</string>
 </resources>

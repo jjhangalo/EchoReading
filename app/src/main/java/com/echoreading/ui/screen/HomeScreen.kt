@@ -61,12 +61,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.echoreading.R
 import com.echoreading.ui.component.SoundWave
 import com.echoreading.reader.ReaderPlaybackService
 import com.echoreading.reader.ReaderState
@@ -756,7 +758,7 @@ fun ReaderHome() {
                             .padding(top = 2.dp)
                     )
                     Text(
-                        "Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.",
+                        stringResource(R.string.home_screen_tip),
                         style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

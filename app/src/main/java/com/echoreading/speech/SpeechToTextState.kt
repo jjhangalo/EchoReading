@@ -31,7 +31,7 @@ data class TranscriptionSnapshot(
     val progress: Float = 0f,        // 0.0–1.0 para progresso visual
 )
 
-object TranscriberState {
+object SpeechToTextState {
     val snapshot = MutableStateFlow(TranscriptionSnapshot())
     val loadAudioEvent = MutableSharedFlow<Uri>(
         replay = 0,
@@ -108,7 +108,8 @@ object TranscriberState {
                     if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                         audioRecord.stop()
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                }
 
                 val totalCount = chunks.sumOf { it.size }
                 if (totalCount == 0) {
@@ -130,9 +131,9 @@ object TranscriberState {
 
                 val durationMs = (totalCount.toLong() * 1000L) / sampleRate
                 processSamples(appContext, floatSamples, sampleRate, "Gravação de voz", durationMs)
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 return@launch
-            } catch (e: SecurityException) {
+            } catch (_: SecurityException) {
                 snapshot.value = snapshot.value.copy(
                     status = TranscriptionStatus.ERROR,
                     error = "Permissão de gravação de áudio necessária"
@@ -147,7 +148,8 @@ object TranscriberState {
                 recordingAmplitude.value = 0f
                 try {
                     audioRecord?.release()
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                }
             }
         }
     }
@@ -180,7 +182,7 @@ object TranscriberState {
                     fileName = fileName,
                     durationMs = decoded.durationMs
                 )
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 return@launch
             } catch (e: Exception) {
                 snapshot.value = snapshot.value.copy(
@@ -253,25 +255,27 @@ object TranscriberState {
         }
     }
 
-    private suspend fun getFileName(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
-        var result: String? = null
-        if (uri.scheme == "content") {
-            try {
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (index != -1) {
-                            result = cursor.getString(index)
+    private suspend fun getFileName(context: Context, uri: Uri): String? =
+        withContext(Dispatchers.IO) {
+            var result: String? = null
+            if (uri.scheme == "content") {
+                try {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (index != -1) {
+                                result = cursor.getString(index)
+                            }
                         }
                     }
+                } catch (_: Exception) {
                 }
-            } catch (_: Exception) {}
+            }
+            if (result == null) {
+                result = uri.path?.substringAfterLast('/')
+            }
+            result
         }
-        if (result == null) {
-            result = uri.path?.substringAfterLast('/')
-        }
-        result
-    }
 
     fun reset() {
         isRecording.value = false

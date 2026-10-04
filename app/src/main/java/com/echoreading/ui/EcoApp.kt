@@ -14,11 +14,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.echoreading.HistoryScreen
-import com.echoreading.ui.screen.ReaderHome
 import com.echoreading.SettingsScreen
-import com.echoreading.TranscriberScreen
 import com.echoreading.reader.ReaderState
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
+import com.echoreading.ui.screen.ReaderHome
+import com.echoreading.ui.screen.SpeechToTexScreen
 import com.echoreading.ui.viewport.AppLandscapeViewPort
 import com.echoreading.ui.viewport.AppPortraitViewPort
 
@@ -44,7 +44,7 @@ fun EcoApp() {
     }
 
     LaunchedEffect(Unit) {
-        TranscriberState.loadAudioEvent.collect {
+        SpeechToTextState.loadAudioEvent.collect {
             if (currentRoute != "transcribe") {
                 navController.navigate("transcribe") {
                     popUpTo("home")
@@ -55,7 +55,7 @@ fun EcoApp() {
     }
 
     LaunchedEffect(Unit) {
-        TranscriberState.pendingAudioUri.collect { uri ->
+        SpeechToTextState.pendingAudioUri.collect { uri ->
             if (uri != null && currentRoute != "transcribe") {
                 navController.navigate("transcribe") {
                     popUpTo("home")
@@ -72,7 +72,7 @@ fun EcoApp() {
             modifier = Modifier.padding(padding)
         ) {
             composable("home") { ReaderHome() }
-            composable("transcribe") { TranscriberScreen() }
+            composable("transcribe") { SpeechToTexScreen() }
             composable("history") { HistoryScreen(navController) }
             composable("settings") { SettingsScreen() }
         }

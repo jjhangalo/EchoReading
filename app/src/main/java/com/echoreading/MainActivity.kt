@@ -55,8 +55,8 @@ class MainActivity : ComponentActivity() {
         if (action == Intent.ACTION_SEND) {
             val audioUri = ShareIntentHandler.extractAudioUri(intent)
             if (audioUri != null) {
-                com.echoreading.speech.TranscriberState.pendingAudioUri.value = audioUri
-                com.echoreading.speech.TranscriberState.loadAudioEvent.tryEmit(audioUri)
+                com.echoreading.speech.SpeechToTextState.pendingAudioUri.value = audioUri
+                com.echoreading.speech.SpeechToTextState.loadAudioEvent.tryEmit(audioUri)
             } else {
                 val sharedText = ShareIntentHandler.extractText(intent)
                 if (!sharedText.isNullOrBlank()) {
