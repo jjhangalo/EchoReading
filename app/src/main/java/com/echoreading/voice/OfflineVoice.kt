@@ -13,6 +13,8 @@ import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class VoiceOption(
@@ -37,6 +39,9 @@ object OfflineVoice {
             label = "Português (Portugal) · Tugão",
             modelFile = "pt_PT-tugao-medium.onnx",
             sampleRate = 22_050,
+            url = "https://huggingface.co/csukuangfj/vits-piper-pt_PT-tugao-medium/resolve/main/pt_PT-tugao-medium.onnx",
+            sha256 = "0d922da6f6fd87f981bb05fa8f698a1af6fc5c9366c212cdeb36a0f04c3c056d",
+            fileSize = 63_201_425,
             languageCode = "pt_PT",
         ),
         VoiceOption(
@@ -62,6 +67,7 @@ object OfflineVoice {
     )
     // ponytail: one model in memory serializes requests; use separate instances if accessibility latency suffers.
     private val lock = Any()
+    private val installMutex = Mutex()
     private var engine: OfflineTts? = null
     private var loadedId: String? = null
 
@@ -121,14 +127,20 @@ object OfflineVoice {
         allVoices(context).firstOrNull { it.id == id } ?: voices.first()
 
     fun isInstalled(context: Context, voice: VoiceOption): Boolean {
-        if (voice.url == null) return true
+        val assetExists = try {
+            context.assets?.list(ASSET_DIR)?.contains(voice.modelFile) == true
+        } catch (_: Throwable) {
+            false
+        }
+        if (assetExists) return true
+        val minSize = if (voice.fileSize > 0) voice.fileSize else 1L
         val directFile = File(modelDirectory(context, voice), voice.modelFile)
-        if (directFile.isFile && directFile.length() >= voice.fileSize) return true
+        if (directFile.isFile && directFile.length() >= minSize) return true
         // Also check if installed under discovery key or alternate folder with matching model file
         val voicesDir = File(context.noBackupFilesDir, "voices")
         if (voicesDir.isDirectory) {
             val matching = voicesDir.listFiles()?.any { dir ->
-                dir.isDirectory && File(dir, voice.modelFile).let { it.isFile && it.length() >= voice.fileSize }
+                dir.isDirectory && File(dir, voice.modelFile).let { it.isFile && it.length() >= minSize }
             } == true
             if (matching) return true
         }
@@ -137,23 +149,27 @@ object OfflineVoice {
 
     suspend fun install(context: Context, voice: VoiceOption, onProgress: (Long, Long) -> Unit) {
         if (voice.url == null || isInstalled(context, voice)) return
-        withContext(Dispatchers.IO) {
-            val directory = modelDirectory(context, voice).apply { mkdirs() }
-            val target = File(directory, voice.modelFile)
-            downloadFile(
-                url = voice.url,
-                target = target,
-                expectedSize = voice.fileSize,
-                md5Expected = voice.md5,
-                sha256Expected = voice.sha256,
-                onProgress = onProgress,
-            )
-            OnnxMetadata.repairModelFile(
-                onnxFile = target,
-                fallbackSampleRate = voice.sampleRate,
-                fallbackLanguage = voice.languageCode ?: "",
-            )
-            invalidateDiscoveryCache()
+        installMutex.withLock {
+            if (isInstalled(context, voice)) return
+            withContext(Dispatchers.IO) {
+                val directory = modelDirectory(context, voice).apply { mkdirs() }
+                val target = File(directory, voice.modelFile)
+                downloadFile(
+                    url = voice.url,
+                    target = target,
+                    expectedSize = voice.fileSize,
+                    md5Expected = voice.md5,
+                    sha256Expected = voice.sha256,
+                    onProgress = onProgress,
+                )
+                OnnxMetadata.repairModelFile(
+                    onnxFile = target,
+                    fallbackSampleRate = voice.sampleRate,
+                    fallbackLanguage = voice.languageCode ?: "",
+                )
+                ensureEspeakData(context, voice)
+                invalidateDiscoveryCache()
+            }
         }
     }
 
@@ -243,6 +259,7 @@ object OfflineVoice {
             put("languageCode", catalogVoice.languageCode)
         }
         File(voiceDir, "meta.json").writeText(meta.toString(2))
+        ensureEspeakData(context, option(context, catalogVoice.key))
         invalidateDiscoveryCache()
     }
 
@@ -288,6 +305,8 @@ object OfflineVoice {
 
         try {
             check(conn.responseCode == HttpURLConnection.HTTP_OK) { "Download failed with HTTP ${conn.responseCode}" }
+            val contentLength = conn.contentLengthLong
+            val totalExpected = if (contentLength > 0) contentLength else expectedSize
             val digest = when {
                 md5Expected != null -> MessageDigest.getInstance("MD5")
                 sha256Expected != null -> MessageDigest.getInstance("SHA-256")
@@ -304,7 +323,7 @@ object OfflineVoice {
                         output.write(buffer, 0, count)
                         digest?.update(buffer, 0, count)
                         copied += count
-                        onProgress(copied, expectedSize)
+                        onProgress(copied, totalExpected)
                     }
                 }
             }
@@ -317,7 +336,9 @@ object OfflineVoice {
                     "Checksum mismatch: $checksum != $expected"
                 }
             }
-            if (expectedSize > 0) {
+            if (contentLength > 0) {
+                check(copied == contentLength) { "Size mismatch: $copied != $contentLength" }
+            } else if (expectedSize > 0 && md5Expected == null && sha256Expected == null) {
                 check(copied == expectedSize) { "Size mismatch: $copied != $expectedSize" }
             }
             if (target.exists()) target.delete()
@@ -338,7 +359,19 @@ object OfflineVoice {
         voiceId: String = "pt-PT",
         speed: Float = 1f,
     ): GeneratedAudio = synchronized(lock) {
-        val voice = option(context, voiceId)
+        var voice = option(context, voiceId)
+        if (!isInstalled(context, voice)) {
+            val installedVoices = allVoices(context).filter { isInstalled(context, it) }
+            val sameLang = installedVoices.firstOrNull {
+                val targetLang = voice.languageCode?.take(2) ?: voice.id.take(2)
+                val itLang = it.languageCode?.take(2) ?: it.id.take(2)
+                targetLang.equals(itLang, ignoreCase = true)
+            }
+            val installed = sameLang ?: installedVoices.firstOrNull()
+            if (installed != null) {
+                voice = installed
+            }
+        }
         check(isInstalled(context, voice)) { "Voice not installed: ${voice.id}" }
         if (engine == null || loadedId != voice.id) {
             engine?.release()
@@ -354,28 +387,175 @@ object OfflineVoice {
     private fun modelDirectory(context: Context, voice: VoiceOption) =
         File(context.noBackupFilesDir, "voices/${voice.id}")
 
-    private fun open(context: Context, voice: VoiceOption): OfflineTts {
+    fun isEspeakDataValid(dir: File?): Boolean {
+        if (dir == null || !dir.isDirectory) return false
+        val phontab = File(dir, "phontab")
+        val phonindex = File(dir, "phonindex")
+        val phondata = File(dir, "phondata")
+        return phontab.isFile && phontab.length() > 0 &&
+            phonindex.isFile && phonindex.length() > 0 &&
+            phondata.isFile && phondata.length() > 0
+    }
+
+    fun resolveEspeakDir(dir: File?): File? {
+        if (dir == null || !dir.isDirectory) return null
+        if (isEspeakDataValid(dir)) return dir
+        val nested = File(dir, "espeak-ng-data")
+        if (isEspeakDataValid(nested)) return nested
+        return null
+    }
+
+    fun findInstalledEspeakDir(context: Context, voice: VoiceOption? = null): File? {
+        val candidates = mutableListOf<File>()
+        candidates.add(File(context.noBackupFilesDir, "voice-tugao-v1/espeak-ng-data"))
+        candidates.add(File(context.noBackupFilesDir, "voice-tugao-v1"))
+        candidates.add(File(context.noBackupFilesDir, "espeak-ng-data"))
+        voice?.let {
+            candidates.add(File(modelDirectory(context, it), "espeak-ng-data"))
+        }
+        val voicesDir = File(context.noBackupFilesDir, "voices")
+        if (voicesDir.isDirectory) {
+            voicesDir.listFiles()?.filter { it.isDirectory }?.forEach {
+                candidates.add(File(it, "espeak-ng-data"))
+            }
+        }
+        candidates.add(File(context.filesDir, "espeak-ng-data"))
+        candidates.add(File(context.filesDir, "voice-tugao-v1/espeak-ng-data"))
+
+        for (candidate in candidates) {
+            val resolved = resolveEspeakDir(candidate)
+            if (resolved != null) return resolved
+        }
+        return null
+    }
+
+    fun prewarmEspeakData(context: Context) {
+        try {
+            ensureEspeakData(context)
+        } catch (_: Throwable) {
+        }
+    }
+
+    @Synchronized
+    fun ensureEspeakData(context: Context, voice: VoiceOption? = null): File {
+        val existing = findInstalledEspeakDir(context, voice)
+        if (existing != null) return existing
+
         val phonemes = File(context.noBackupFilesDir, "voice-tugao-v1/espeak-ng-data")
         val ready = File(phonemes.parentFile, "ready")
-        if (!ready.isFile) {
-            phonemes.deleteRecursively()
-            copyAssetTree(context, "$ASSET_DIR/espeak-ng-data", phonemes)
-            ready.writeText("ready")
+        val tempDir = File(phonemes.parentFile, "espeak-ng-data-temp")
+
+        try {
+            tempDir.deleteRecursively()
+            tempDir.mkdirs()
+
+            // 1. Try directory from assets (e.g. "espeak-ng-data", "$ASSET_DIR/espeak-ng-data", or ASSET_DIR)
+            val assetCandidates = listOf(
+                "espeak-ng-data",
+                "$ASSET_DIR/espeak-ng-data",
+                ASSET_DIR,
+            )
+            for (assetPath in assetCandidates) {
+                try {
+                    val hasPhontab = try {
+                        context.assets?.open("$assetPath/phontab")?.use { true } ?: false
+                    } catch (_: Throwable) {
+                        false
+                    }
+                    val hasEntries = if (!hasPhontab) {
+                        try {
+                            context.assets?.list(assetPath)?.isNotEmpty() == true
+                        } catch (_: Throwable) {
+                            false
+                        }
+                    } else false
+
+                    if (hasPhontab || hasEntries) {
+                        copyAssetDirectory(context, assetPath, tempDir)
+                        if (isEspeakDataValid(tempDir)) break
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+
+            // 2. Try zip asset if directory wasn't found or was incomplete
+            if (!isEspeakDataValid(tempDir)) {
+                val zipCandidates = listOf(
+                    "espeak-ng-data.zip",
+                    "$ASSET_DIR/espeak-ng-data.zip",
+                )
+                for (zipName in zipCandidates) {
+                    try {
+                        context.assets?.open(zipName)?.use { input ->
+                            java.util.zip.ZipInputStream(input.buffered()).use { zipIn ->
+                                var entry = zipIn.nextEntry
+                                while (entry != null) {
+                                    val clean = entry.name.removePrefix("espeak-ng-data/").removePrefix("espeak-ng-data\\")
+                                    if (clean.isNotEmpty()) {
+                                        val outFile = File(tempDir, clean)
+                                        if (entry.isDirectory) {
+                                            outFile.mkdirs()
+                                        } else {
+                                            outFile.parentFile?.mkdirs()
+                                            outFile.outputStream().buffered().use { out ->
+                                                zipIn.copyTo(out)
+                                            }
+                                        }
+                                    }
+                                    zipIn.closeEntry()
+                                    entry = zipIn.nextEntry
+                                }
+                            }
+                        }
+                        if (isEspeakDataValid(tempDir)) break
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+
+            if (isEspeakDataValid(tempDir)) {
+                phonemes.deleteRecursively()
+                phonemes.parentFile?.mkdirs()
+                if (!tempDir.renameTo(phonemes)) {
+                    tempDir.copyRecursively(phonemes, overwrite = true)
+                    tempDir.deleteRecursively()
+                }
+                try {
+                    ready.parentFile?.mkdirs()
+                    ready.writeText("ready")
+                } catch (_: Throwable) {
+                }
+                return phonemes
+            }
+        } finally {
+            if (tempDir.exists()) tempDir.deleteRecursively()
         }
-        val bundled = voice.url == null
+
+        return resolveEspeakDir(phonemes) ?: phonemes
+    }
+
+    private fun open(context: Context, voice: VoiceOption): OfflineTts {
+        val phonemes = ensureEspeakData(context, voice)
+        val minSize = if (voice.fileSize > 0) voice.fileSize else 1L
+        val direct = File(modelDirectory(context, voice), voice.modelFile)
+        val hasDirectModel = direct.isFile && direct.length() >= minSize
+        val voicesDir = File(context.noBackupFilesDir, "voices")
+        val altModel = if (!hasDirectModel && voicesDir.isDirectory) {
+            voicesDir.listFiles()?.firstOrNull { dir ->
+                dir.isDirectory && File(dir, voice.modelFile).let { it.isFile && it.length() >= minSize }
+            }?.let { File(it, voice.modelFile) }
+        } else null
+        val diskModelFile = if (hasDirectModel) direct else altModel
+        val assetExists = try {
+            context.assets?.list(ASSET_DIR)?.contains(voice.modelFile) == true
+        } catch (_: Throwable) {
+            false
+        }
+        val bundled = assetExists && diskModelFile == null
         val modelPath = if (bundled) {
             "$ASSET_DIR/${voice.modelFile}"
         } else {
-            val direct = File(modelDirectory(context, voice), voice.modelFile)
-            if (direct.isFile) {
-                direct.absolutePath
-            } else {
-                val voicesDir = File(context.noBackupFilesDir, "voices")
-                val alt = voicesDir.listFiles()?.firstOrNull { dir ->
-                    dir.isDirectory && File(dir, voice.modelFile).isFile
-                }
-                if (alt != null) File(alt, voice.modelFile).absolutePath else direct.absolutePath
-            }
+            diskModelFile?.absolutePath ?: direct.absolutePath
         }
 
         if (!bundled) {
@@ -395,6 +575,9 @@ object OfflineVoice {
             val voiceDir = File(modelPath).parentFile
             val voiceTokens = voiceDir?.let { File(it, "tokens.txt") }
             if (voiceTokens != null && voiceTokens.isFile) {
+                if (voiceTokens.readText().contains("\r")) {
+                    voiceTokens.writeText(voiceTokens.readText().replace("\r\n", "\n").replace("\r", "\n"))
+                }
                 voiceTokens.absolutePath
             } else {
                 // Try generating tokens.txt from .onnx.json if present
@@ -420,6 +603,9 @@ object OfflineVoice {
                     } catch (_: Exception) {}
                 }
                 if (voiceTokens != null && voiceTokens.isFile) {
+                    if (voiceTokens.readText().contains("\r")) {
+                        voiceTokens.writeText(voiceTokens.readText().replace("\r\n", "\n").replace("\r", "\n"))
+                    }
                     voiceTokens.absolutePath
                 } else {
                     File(context.noBackupFilesDir, "voices/tokens.txt").also { tokens ->
@@ -434,6 +620,10 @@ object OfflineVoice {
             }
         }
 
+        val hasPhonemes = isEspeakDataValid(phonemes)
+        check(hasPhonemes) {
+            "eSpeak-NG phoneme data is invalid or missing at ${phonemes.absolutePath}. Required files (phontab, phonindex, phondata) not found."
+        }
         val config = OfflineTtsConfig(
             model = OfflineTtsModelConfig(
                 vits = OfflineTtsVitsModelConfig(
@@ -447,16 +637,35 @@ object OfflineVoice {
         return OfflineTts(if (bundled) context.assets else null, config)
     }
 
-    private fun copyAssetTree(context: Context, assetPath: String, destination: File) {
-        val children = context.assets.list(assetPath).orEmpty()
-        if (children.isNotEmpty()) {
-            check(destination.mkdirs() || destination.isDirectory)
-            children.forEach { copyAssetTree(context, "$assetPath/$it", File(destination, it)) }
-        } else {
-            destination.parentFile?.mkdirs()
-            context.assets.open(assetPath).use { input ->
-                destination.outputStream().use { output -> input.copyTo(output) }
+    fun copyAssetDirectory(context: Context, assetDir: String, destination: File): Boolean {
+        destination.mkdirs()
+        val items = try {
+            context.assets?.list(assetDir).orEmpty()
+        } catch (_: Throwable) {
+            emptyArray()
+        }
+        if (items.isEmpty()) return false
+
+        for (item in items) {
+            val itemPath = if (assetDir.isEmpty()) item else "$assetDir/$item"
+            val targetFile = File(destination, item)
+            var isFile = false
+            try {
+                context.assets?.open(itemPath)?.use { input ->
+                    targetFile.parentFile?.mkdirs()
+                    targetFile.outputStream().buffered().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                isFile = true
+            } catch (_: Throwable) {
+                // Not a file or could not open, treat as subdirectory
+            }
+
+            if (!isFile) {
+                copyAssetDirectory(context, itemPath, targetFile)
             }
         }
+        return true
     }
 }

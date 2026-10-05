@@ -69,11 +69,18 @@ object ReaderState {
     fun restore(context: Context) {
         if (snapshot.value.text.isNotEmpty()) return
         val prefs = context.getSharedPreferences("reading", Context.MODE_PRIVATE)
+        val savedVoice = prefs.getString("voice", null)
+        val defaultVoice = if (savedVoice != null) {
+            savedVoice
+        } else {
+            val installed = com.echoreading.voice.OfflineVoice.allVoices(context).firstOrNull { com.echoreading.voice.OfflineVoice.isInstalled(context, it) }
+            installed?.id ?: "pt-PT"
+        }
         snapshot.value = ReaderSnapshot(
             text = prefs.getString("text", "").orEmpty(),
             positionMs = prefs.getLong("position_ms", 0),
             characterOffset = prefs.getInt("character_offset", 0),
-            voiceId = prefs.getString("voice", "pt-PT").orEmpty(),
+            voiceId = defaultVoice,
             speed = prefs.getFloat("speed", 1f),
         )
     }

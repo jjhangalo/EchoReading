@@ -102,7 +102,7 @@
 
     <string name="tab_transcribe">Transcrever</string>
     <string name="transcribe_title">Transcrição de Áudio</string>
-    <string name="transcribe_select_audio">Carregar</string>
+    <string name="transcribe_select_audio">Selecionar Áudio</string>
     <string name="transcribe_supported_formats">MP3, WAV, OGG, M4A, FLAC, AAC, OPUS</string>
     <string name="transcribe_or_share">ou partilhe de outra aplicação</string>
     <string name="transcribe_decoding">A descodificar áudio…</string>

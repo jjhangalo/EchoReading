@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.ReadingStatus
 import com.echoreading.reader.ReaderState
@@ -16,6 +17,9 @@ import com.echoreading.share.ShareIntentHandler
 import com.echoreading.speech.SpeechToTextState
 import com.echoreading.ui.EcoApp
 import com.echoreading.ui.theme.EcoTheme
+import com.echoreading.voice.OfflineVoice
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -29,6 +33,10 @@ class MainActivity : ComponentActivity() {
         ReaderState.restore(this)
         SpeechToTextState.restore(this)
         ReadingHistory.init(this)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            OfflineVoice.prewarmEspeakData(applicationContext)
+        }
 
         if (savedInstanceState == null) {
             handleIncomingIntent(intent)
