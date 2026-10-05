@@ -49,13 +49,13 @@ fun SpeechToTexScreen(
     val snapshot by SpeechToTextState.snapshot.collectAsState()
     val download by SpeechToTextState.download.collectAsState()
     val selectedModel by SpeechToTextState.selectedModelId.collectAsState()
-    val workingStatuses = setOf(
-        TranscriptionStatus.RECORDING,
+    val processingStatuses = setOf(
         TranscriptionStatus.DECODING,
         TranscriptionStatus.CHECKING_QUALITY,
         TranscriptionStatus.TRANSCRIBING,
     )
-    val isBusy = snapshot.status in workingStatuses ||
+    val isRecording = snapshot.status == TranscriptionStatus.RECORDING
+    val isProcessing = snapshot.status in processingStatuses ||
             download.status == ModelDownloadStatus.DOWNLOADING
 
     val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
@@ -168,12 +168,14 @@ fun SpeechToTexScreen(
             }
 
             TranscriptionActionFab(
-                busy = isBusy,
+                recording = isRecording,
+                processing = isProcessing,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
                 onRecord = startRecording,
                 onSelectAudio = { audioPicker.launch(arrayOf("audio/*")) },
+                onStopRecording = { SpeechToTextState.stopRecording(ctx) },
                 onCancel = { SpeechToTextState.cancel(ctx) },
             )
         }

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
@@ -55,15 +56,17 @@ import com.echoreading.speech.TranscriptionStatus
 
 @Composable
 fun TranscriptionActionFab(
-    busy: Boolean,
+    recording: Boolean,
+    processing: Boolean,
     modifier: Modifier = Modifier,
     onRecord: () -> Unit,
     onSelectAudio: () -> Unit,
+    onStopRecording: () -> Unit,
     onCancel: () -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(busy) {
-        if (busy) expanded = false
+    LaunchedEffect(recording, processing) {
+        if (recording || processing) expanded = false
     }
 
     Column(
@@ -71,7 +74,7 @@ fun TranscriptionActionFab(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        AnimatedVisibility(visible = expanded && !busy) {
+        AnimatedVisibility(visible = expanded && !recording && !processing) {
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -97,22 +100,28 @@ fun TranscriptionActionFab(
 
         FloatingActionButton(
             onClick = {
-                if (busy) onCancel() else expanded = !expanded
+                when {
+                    recording -> onStopRecording()
+                    processing -> onCancel()
+                    else -> expanded = !expanded
+                }
             },
-            containerColor = if (busy) colorScheme.errorContainer
+            containerColor = if (processing) colorScheme.errorContainer
             else colorScheme.primaryContainer,
-            contentColor = if (busy) colorScheme.onErrorContainer
+            contentColor = if (processing) colorScheme.onErrorContainer
             else colorScheme.onPrimaryContainer,
             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
         ) {
             Icon(
                 imageVector = when {
-                    busy -> Default.Cancel
+                    recording -> Default.Stop
+                    processing -> Default.Cancel
                     expanded -> Default.Close
                     else -> Default.Mic
                 },
                 contentDescription = when {
-                    busy -> stringResource(R.string.transcribe_cancel_in_progress)
+                    recording -> stringResource(R.string.transcribe_stop_recording)
+                    processing -> stringResource(R.string.transcribe_cancel_in_progress)
                     expanded -> stringResource(R.string.close_panel)
                     else -> stringResource(R.string.transcribe_open_actions)
                 },
