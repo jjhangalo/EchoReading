@@ -8,7 +8,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
@@ -99,6 +101,7 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    Log.e(TAG, "Player error encountered during playback", error)
                     failReading(generationId)
                 }
             })
@@ -260,14 +263,46 @@ class ReaderPlaybackService : MediaSessionService() {
         val destination = audioDir ?: return
         generation = scope.launch(Dispatchers.IO) {
             try {
+                var targetVoice = OfflineVoice.option(this@ReaderPlaybackService, voiceId)
+                if (!OfflineVoice.isInstalled(this@ReaderPlaybackService, targetVoice)) {
+                    if (targetVoice.url != null) {
+                        try {
+                            OfflineVoice.install(this@ReaderPlaybackService, targetVoice) { _, _ -> }
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to download voice ${targetVoice.id}, checking fallback", e)
+                        }
+                    }
+                    if (!isActive || generationId != id) return@launch
+                    if (!OfflineVoice.isInstalled(this@ReaderPlaybackService, targetVoice)) {
+                        val installedVoices = OfflineVoice.allVoices(this@ReaderPlaybackService)
+                            .filter { OfflineVoice.isInstalled(this@ReaderPlaybackService, it) }
+                        val fallback = installedVoices.firstOrNull {
+                            val targetLang = targetVoice.languageCode?.take(2) ?: targetVoice.id.take(2)
+                            val itLang = it.languageCode?.take(2) ?: it.id.take(2)
+                            targetLang.equals(itLang, ignoreCase = true)
+                        } ?: installedVoices.firstOrNull()
+                        if (fallback != null) {
+                            targetVoice = fallback
+                            withContext(Dispatchers.Main) {
+                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = fallback.id)
+                                ReaderState.save(this@ReaderPlaybackService)
+                            }
+                        } else {
+                            throw IllegalStateException(getString(R.string.download_failed))
+                        }
+                    }
+                }
+
                 chunks.forEachIndexed { index, chunk ->
                     if (!isActive || generationId != id) return@launch
                     // ponytail: native generation cannot stop mid-chunk; discard it after a stop.
-                    val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, voiceId, speed)
+                    val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, targetVoice.id, speed)
                     if (!isActive || generationId != id) return@launch
                     val file = File(destination, "$index.wav")
                     val duration = WavFiles.write(file, audio)
-                    withContext(Dispatchers.Main) { addAudio(id, index, file, duration) }
+                    withContext(Dispatchers.Main) { addAudio(id, index, file, duration, text, targetVoice.id) }
                 }
                 withContext(Dispatchers.Main) {
                     if (generationId != id) return@withContext
@@ -281,10 +316,9 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
             } catch (_: CancellationException) {
                 return@launch
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) { failReading(id) }
-            } catch (_: LinkageError) {
-                withContext(Dispatchers.Main) { failReading(id) }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Audio synthesis failed for chunk in generation $id", e)
+                withContext(Dispatchers.Main) { failReading(id, e.message) }
             }
         }
     }
@@ -316,7 +350,7 @@ class ReaderPlaybackService : MediaSessionService() {
             val file = File(cached.audioDir, "$index.wav")
             MediaItem.Builder()
                 .setMediaId(index.toString())
-                .setUri(file.toURI().toString())
+                .setUri(Uri.fromFile(file))
                 .setMediaMetadata(buildMediaMetadata(cached.text, cached.voiceId))
                 .build()
         }
@@ -346,7 +380,7 @@ class ReaderPlaybackService : MediaSessionService() {
         if (wantsPlayback) player.play()
     }
 
-    private fun failReading(id: Int) {
+    private fun failReading(id: Int, errorMessage: String? = null) {
         if (generationId != id) return
         generationId++
         generation?.cancel()
@@ -355,28 +389,28 @@ class ReaderPlaybackService : MediaSessionService() {
         ReaderAudioCache.clear()
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
             status = ReadingStatus.ERROR,
-            error = getString(R.string.reading_error),
+            error = errorMessage ?: getString(R.string.reading_error),
         )
         player.stop()
         player.clearMediaItems()
         ReaderState.save(this)
         showStatusNotification(
             getString(R.string.reading_error_title),
-            getString(R.string.reading_error),
+            errorMessage ?: getString(R.string.reading_error),
         )
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    private fun addAudio(id: Int, index: Int, file: File, durationMs: Long) {
+    private fun addAudio(id: Int, index: Int, file: File, durationMs: Long, text: String, voiceId: String) {
         if (generationId != id) return
         timeline.add(durationMs)
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(durationMs = timeline.preparedMs)
         player.addMediaItem(
             MediaItem.Builder()
                 .setMediaId(index.toString())
-                .setUri(file.toURI().toString())
-                .setMediaMetadata(buildMediaMetadata())
+                .setUri(Uri.fromFile(file))
+                .setMediaMetadata(buildMediaMetadata(text, voiceId))
                 .build(),
         )
         val requested = pendingPosition
@@ -572,7 +606,7 @@ class ReaderPlaybackService : MediaSessionService() {
         voiceId: String = ReaderState.snapshot.value.voiceId,
     ): MediaMetadata {
         val title = formatTitle(text, getString(R.string.app_name))
-        val voiceLabel = OfflineVoice.option(voiceId).label
+        val voiceLabel = OfflineVoice.option(this, voiceId).label
         return MediaMetadata.Builder()
             .setTitle(title)
             .setDisplayTitle(title)
@@ -617,6 +651,7 @@ class ReaderPlaybackService : MediaSessionService() {
     }
 
     companion object {
+        private const val TAG = "ReaderPlaybackService"
         const val NOTIFICATION_ID = 1101
         const val STATUS_NOTIFICATION_ID = 1102
         const val CHANNEL_ID = "eco-reading-playback"

@@ -1,23 +1,23 @@
 <resources>
     <string name="app_name">Eco Leitura</string>
-    <string name="action_ecoar">Ecoar</string>
+    <string name="action_echo">Ecoar</string>
     <string name="open_in_reader">Abrir no Leitor</string>
     <string name="read_aloud">Ler em voz alta</string>
     <string name="reading">Leitura</string>
     <string name="read_text_hint">Escreve ou cola aqui o texto a ler</string>
     <string name="choose_voice">Voz</string>
-    <string name="download_voice">Descarregar</string>
-    <string name="download_failed">Falha ao descarregar a voz. Verifica a ligação.</string>
+    <string name="download_voice">Transferir</string>
+    <string name="download_failed">Falha ao transferir a voz. Verifica a ligação e tente novamente.</string>
     <string name="speech_speed">Velocidade</string>
     <string name="start_reading">Começar a ler</string>
     <string name="pause_reading">Pausar</string>
     <string name="resume_reading">Retomar</string>
-    <string name="rewind_ten">Retroceder 10 s</string>
+    <string name="rewind_ten">Recuar 10 s</string>
     <string name="forward_ten">Avançar 10 s</string>
     <string name="stop_reading">Parar</string>
     <string name="reset_reading">Repor</string>
     <string name="close_panel">Fechar</string>
-    <string name="preparing_audio">A preparar áudio…</string>
+    <string name="preparing_audio">A preparar o áudio…</string>
     <string name="reading_error">Não foi possível preparar a leitura.</string>
     <string name="offline_voice">Voz offline incluída</string>
 
@@ -53,7 +53,7 @@
     <string name="see_less">Ver menos</string>
     <string name="clear_history">Limpar Todo o Histórico</string>
     <string name="clear_confirm_title">Limpar histórico?</string>
-    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os mantidos como favoritos.</string>
+    <string name="clear_confirm_body">Todos os textos serão eliminados, excepto os favoritos.</string>
     <string name="empty_history">Nenhum texto encontrado</string>
     <string name="date_filter_title">Filtrar por Data</string>
     <string name="date_mode_single">Dia único</string>
@@ -78,7 +78,7 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
     <string name="theme_system">Sistema</string>
-    <string name="dynamic_colors">Cores dinâmicas (Material You)</string>
+    <string name="dynamic_colors">Cores dinâmicas</string>
     <string name="dynamic_colors_sub">Harmonizar a paleta com o fundo do seu ecrã inicial Android</string>
     <string name="voices_on_device">No Dispositivo</string>
     <string name="voices_installed_count">%1$d vozes • %2$s MB</string>
@@ -92,7 +92,7 @@
     <string name="privacy_title">Privacidade Local e Sem Rastreio</string>
     <string name="privacy_body">Todos os dados e textos permanecem exclusivamente no armazenamento local do dispositivo. Nenhum dado é enviado para servidores externos.</string>
     <string name="cancel">Cancelar</string>
-    <string name="engine_version_info">Eco Leitura Motor v2.0.1 — Sintetizador neural ativo offline com privacidade protegida</string>
+    <string name="engine_version_info">Eco Leitura Motor v2.1.2 — Sintetizador neural ativo offline com privacidade protegida</string>
     <!-- Notification controls -->
     <string name="reading_status_channel">Estado da Leitura</string>
     <string name="reading_complete_title">Leitura Concluída</string>
@@ -111,23 +111,35 @@
     <string name="transcribe_done">Transcrição concluída</string>
     <string name="transcribe_copy">Copiar</string>
     <string name="transcribe_share">Partilhar</string>
-    <string name="transcribe_listen">Ouvir no Leitor</string>
+    <string name="transcribe_listen">Ecoar</string>
     <string name="transcribe_error_noisy">Áudio com demasiado ruído de fundo. Tente com um áudio mais limpo.</string>
     <string name="transcribe_error_silent">O áudio está em silêncio. Verifique o ficheiro.</string>
     <string name="transcribe_error_no_speech">Não foi detetada fala suficiente no áudio.</string>
     <string name="transcribe_error_low_volume">Volume do áudio demasiado baixo.</string>
     <string name="transcribe_error_clipped">Áudio com distorção ou volume excessivo. Fale um pouco mais afastado do microfone.</string>
     <string name="transcribe_model_download">A descarregar modelo de transcrição…</string>
-    <string name="transcribe_model_required">É necessário descarregar o modelo de transcrição (~150 MB) para utilizar esta funcionalidade.</string>
+    <string name="transcribe_model_required">Transferir o modelo de transcrição (~150 MB) para continuar.</string>
     <string name="transcribe_model_download_btn">Descarregar Modelo</string>
-    <string name="transcribe_record_voice">Gravar Voz</string>
+    <string name="transcribe_record_voice">Gravar</string>
     <string name="transcribe_speak_now">Falar agora</string>
-    <string name="transcribe_stop_recording">Parar e Transcrever</string>
+    <string name="transcribe_stop_recording">Transcrever</string>
     <string name="transcribe_listening">A ouvir… Fale agora para transcrever</string>
+    <string name="transcribe_model_label">Modelo de transcrição</string>
+    <string name="transcribe_model_selected">Modelo selecionado: %1$s</string>
+    <string name="transcribe_model_used">Transcrito com: %1$s</string>
+    <string name="transcribe_change_model">Alterar</string>
+    <string name="transcribe_open_actions">Abrir ações de transcrição</string>
+    <string name="transcribe_cancel_in_progress">Cancelar processamento</string>
+    <string name="transcribe_paused">Processamento pausado</string>
+    <string name="transcribe_resume">Retomar processamento</string>
     <string name="transcribe_select_audio_file">Ou selecionar ficheiro de áudio</string>
     <string name="transcribe_permission_needed">Permissão de microfone necessária para gravação</string>
     <string name="stt_model_whisper">Modelo Whisper (STT)</string>
     <string name="stt_model_installed">Instalado e Pronto</string>
     <string name="stt_model_not_installed">Não Instalado (~150 MB)</string>
     <string name="stt_delete_confirm">Eliminar o modelo de transcrição Whisper do dispositivo?</string>
+    <string name="home_screen_tip">Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.</string>
+    <string name="stt_screen_record_tip">Dica: Para melhores resultados, grave num ambiente silencioso e mantenha o telemóvel a cerca de 15cm da boca.</string>
+    <string name="transcribe_error">Erro na Transcrição</string>
+    <string name="transcription_label">Transcrição</string>
 </resources>

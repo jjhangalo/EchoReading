@@ -7,6 +7,8 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.echoreading.reader.ReaderState
+import com.echoreading.ui.component.QuickReaderPopupWidget
+import com.echoreading.ui.theme.EcoTheme
 
 class QuickReadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,6 +26,6 @@ class QuickReadActivity : ComponentActivity() {
         window.setGravity(Gravity.BOTTOM)
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         window.setWindowAnimations(android.R.style.Animation_InputMethod)
-        setContent { EcoTheme { ReaderQuickPanel(selected, ::finish) } }
+        setContent { EcoTheme { QuickReaderPopupWidget(selected, ::finish) } }
     }
 }

@@ -4,8 +4,7 @@ import com.echoreading.e2e.testutil.AudioTestFixtures
 import com.echoreading.e2e.testutil.ManifestTestParser
 import com.echoreading.reader.ReaderState
 import com.echoreading.speech.AudioQualityChecker
-import com.echoreading.speech.AudioQualityReport
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
 import com.echoreading.speech.TranscriptionStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -27,12 +26,12 @@ class AudioCaptureQualityRequirementTest {
 
     @Before
     fun setUp() {
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     @After
     fun tearDown() {
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     // =========================================================================
@@ -41,19 +40,19 @@ class AudioCaptureQualityRequirementTest {
 
     @Test
     fun f1_1_recordingStateDefaultsToIdle() {
-        assertFalse("Recording must initially be idle", TranscriberState.isRecording.value)
-        assertEquals("Initial recording duration must be 0", 0, TranscriberState.recordingDurationSec.value)
-        assertEquals("Initial recording amplitude must be 0f", 0f, TranscriberState.recordingAmplitude.value, 0.001f)
+        assertFalse("Recording must initially be idle", SpeechToTextState.isRecording.value)
+        assertEquals("Initial recording duration must be 0", 0, SpeechToTextState.recordingDurationSec.value)
+        assertEquals("Initial recording amplitude must be 0f", 0f, SpeechToTextState.recordingAmplitude.value, 0.001f)
     }
 
     @Test
     fun f1_2_recordingStateTogglesReflectively() {
         // Simulates toggling recording state
-        TranscriberState.isRecording.value = true
-        assertTrue("Recording state must reflect active recording", TranscriberState.isRecording.value)
+        SpeechToTextState.isRecording.value = true
+        assertTrue("Recording state must reflect active recording", SpeechToTextState.isRecording.value)
 
-        TranscriberState.isRecording.value = false
-        assertFalse("Recording state must reflect stopped recording", TranscriberState.isRecording.value)
+        SpeechToTextState.isRecording.value = false
+        assertFalse("Recording state must reflect stopped recording", SpeechToTextState.isRecording.value)
     }
 
     @Test
@@ -77,13 +76,13 @@ class AudioCaptureQualityRequirementTest {
 
     @Test
     fun f1_5_recordingSnapshotResetClearsRecordingVariables() {
-        TranscriberState.isRecording.value = true
-        TranscriberState.recordingDurationSec.value = 5
-        TranscriberState.recordingAmplitude.value = 0.8f
+        SpeechToTextState.isRecording.value = true
+        SpeechToTextState.recordingDurationSec.value = 5
+        SpeechToTextState.recordingAmplitude.value = 0.8f
 
-        TranscriberState.reset()
-        assertEquals(TranscriptionStatus.IDLE, TranscriberState.snapshot.value.status)
-        assertEquals("", TranscriberState.snapshot.value.transcribedText)
+        SpeechToTextState.reset()
+        assertEquals(TranscriptionStatus.IDLE, SpeechToTextState.snapshot.value.status)
+        assertEquals("", SpeechToTextState.snapshot.value.transcribedText)
     }
 
     // =========================================================================
@@ -199,13 +198,13 @@ class AudioCaptureQualityRequirementTest {
 
     @Test
     fun f4_1_transcriptionDonePopulatesSnapshot() {
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = "Texto de teste para transcrição",
             progress = 1f
         )
 
-        val snap = TranscriberState.snapshot.value
+        val snap = SpeechToTextState.snapshot.value
         assertEquals(TranscriptionStatus.DONE, snap.status)
         assertEquals("Texto de teste para transcrição", snap.transcribedText)
         assertEquals(1f, snap.progress, 0.001f)
@@ -236,11 +235,11 @@ class AudioCaptureQualityRequirementTest {
 
     @Test
     fun f4_5_emptyTranscriptionDoesNotTriggerDoneAction() {
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = ""
         )
-        assertTrue("Empty transcribed text is recognized", TranscriberState.snapshot.value.transcribedText.isEmpty())
+        assertTrue("Empty transcribed text is recognized", SpeechToTextState.snapshot.value.transcribedText.isEmpty())
     }
 
     // =========================================================================
@@ -261,6 +260,10 @@ class AudioCaptureQualityRequirementTest {
         val permissions = ManifestTestParser.parsePermissions()
         assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE"))
         assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MICROPHONE"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_DATA_SYNC"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"))
+        assertTrue(permissions.contains("android.permission.WAKE_LOCK"))
     }
 
     @Test
@@ -352,11 +355,11 @@ class AudioCaptureQualityRequirementTest {
         val silentAudio = AudioTestFixtures.createSilentAudio(durationMs = 1000)
         val report1 = AudioQualityChecker.analyze(silentAudio, 16000)
         assertFalse(report1.isTranscribable)
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.ERROR,
             error = report1.rejectionReason
         )
-        assertEquals(TranscriptionStatus.ERROR, TranscriberState.snapshot.value.status)
+        assertEquals(TranscriptionStatus.ERROR, SpeechToTextState.snapshot.value.status)
 
         // 2. User re-records with clean audio -> Quality checker passes
         val cleanAudio = AudioTestFixtures.createCleanSpeechAudio(durationMs = 1000)
@@ -364,26 +367,26 @@ class AudioCaptureQualityRequirementTest {
         assertTrue(report2.isTranscribable)
 
         // 3. Transcription completes successfully
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = "Recuperação de gravação com sucesso",
             error = null
         )
-        assertEquals(TranscriptionStatus.DONE, TranscriberState.snapshot.value.status)
-        assertEquals("Recuperação de gravação com sucesso", TranscriberState.snapshot.value.transcribedText)
+        assertEquals(TranscriptionStatus.DONE, SpeechToTextState.snapshot.value.status)
+        assertEquals("Recuperação de gravação com sucesso", SpeechToTextState.snapshot.value.transcribedText)
     }
 
     @Test
     fun c2_transcriptionOutputTransfersToReaderAndStopsStaleAudio() {
         // Simulate completing transcription and loading into reader
         val transcribed = "Texto final transcrito pelo Sherpa-ONNX"
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = transcribed
         )
 
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
-            text = TranscriberState.snapshot.value.transcribedText
+            text = SpeechToTextState.snapshot.value.transcribedText
         )
         assertEquals(transcribed, ReaderState.snapshot.value.text)
     }

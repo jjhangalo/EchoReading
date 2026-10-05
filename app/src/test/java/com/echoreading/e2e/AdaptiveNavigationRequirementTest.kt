@@ -3,11 +3,10 @@ package com.echoreading.e2e
 import com.echoreading.e2e.testutil.AudioTestFixtures
 import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
 import com.echoreading.speech.TranscriptionStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -26,13 +25,13 @@ class AdaptiveNavigationRequirementTest {
     @Before
     fun setUp() {
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     @After
     fun tearDown() {
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
+        SpeechToTextState.reset()
     }
 
     // =========================================================================
@@ -120,34 +119,38 @@ class AdaptiveNavigationRequirementTest {
 
     @Test
     fun f12_1_portraitOrientationSelectsBottomNavigationBar() {
-        val component = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT)
+        val component =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT)
         assertEquals(AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR, component)
     }
 
     @Test
     fun f12_2_landscapeOrientationSelectsSideNavigationRail() {
-        val component = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE)
+        val component =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE)
         assertEquals(AudioTestFixtures.NavigationUiComponent.SIDE_BAR, component)
     }
 
     @Test
     fun f12_3_navigationRailFreesHorizontalSpaceInLandscape() {
         // In landscape, sidebar layout leaves central view unobstructed
-        val isSideBar = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE) ==
-            AudioTestFixtures.NavigationUiComponent.SIDE_BAR
+        val isSideBar =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.LANDSCAPE) ==
+                    AudioTestFixtures.NavigationUiComponent.SIDE_BAR
         assertTrue("Landscape must employ sidebar navigation", isSideBar)
     }
 
     @Test
     fun f12_4_bottomBarOptimizedForVerticalThumbReach() {
-        val isBottomBar = AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT) ==
-            AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR
+        val isBottomBar =
+            AudioTestFixtures.resolveNavigationComponent(AudioTestFixtures.OrientationMode.PORTRAIT) ==
+                    AudioTestFixtures.NavigationUiComponent.BOTTOM_BAR
         assertTrue("Portrait must employ bottom bar navigation", isBottomBar)
     }
 
     @Test
     fun f12_5_navigationComponentExhaustiveMapping() {
-        for (mode in AudioTestFixtures.OrientationMode.values()) {
+        for (mode in AudioTestFixtures.OrientationMode.entries) {
             val component = AudioTestFixtures.resolveNavigationComponent(mode)
             assertNotNull(component)
         }
@@ -179,7 +182,7 @@ class AdaptiveNavigationRequirementTest {
     @Test
     fun f13_2_transcriptionTextPersistsAcrossOrientationFlip() {
         val transcribed = "Texto transcrito durante a reunião de planeamento."
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = transcribed
         )
@@ -188,8 +191,8 @@ class AdaptiveNavigationRequirementTest {
             activeRoute = "transcribe",
             readerDraftText = "",
             readerCharOffset = 0,
-            transcriberText = TranscriberState.snapshot.value.transcribedText,
-            transcriberStatus = TranscriberState.snapshot.value.status.name,
+            transcriberText = SpeechToTextState.snapshot.value.transcribedText,
+            transcriberStatus = SpeechToTextState.snapshot.value.status.name,
             isRecording = false
         )
 
@@ -256,8 +259,7 @@ class AdaptiveNavigationRequirementTest {
             isRecording = false
         )
 
-        // 10 consecutive orientation flips
-        for (i in 1..10) {
+        repeat(10) {
             state = AudioTestFixtures.simulateOrientationChange(state)
         }
 
@@ -285,7 +287,8 @@ class AdaptiveNavigationRequirementTest {
 
     @Test
     fun b3_specialCharactersAndEmojisSurviveRotation() {
-        val specialText = "Texto com símbolos: 🚀 📚 🎙️ © ® € £ § ¶ \n Quebras de linha e acentos: áéíóú çãõ"
+        val specialText =
+            "Texto com símbolos: 🚀 📚 🎙️ © ® € £ § ¶ \n Quebras de linha e acentos: áéíóú çãõ"
         val state = AudioTestFixtures.AppScreenState(
             activeRoute = "home",
             readerDraftText = specialText,
@@ -343,7 +346,7 @@ class AdaptiveNavigationRequirementTest {
     fun c1_switchTabsDuringActiveTranscriptionPreservesBothScreens() {
         // Reader has text, Transcriber has audio result
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(text = "Livro em leitura")
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = "Transcrição concluída"
         )
@@ -352,13 +355,13 @@ class AdaptiveNavigationRequirementTest {
         val currentRoute = "home"
         assertEquals("home", currentRoute)
         assertEquals("Livro em leitura", ReaderState.snapshot.value.text)
-        assertEquals("Transcrição concluída", TranscriberState.snapshot.value.transcribedText)
+        assertEquals("Transcrição concluída", SpeechToTextState.snapshot.value.transcribedText)
     }
 
     @Test
     fun c2_rotateDeviceWhileReceivingAudioSharePreservesPendingUriAndRoute() {
         val testUri = android.net.Uri.parse("content://shared/audio.mp3")
-        TranscriberState.pendingAudioUri.value = testUri
+        SpeechToTextState.pendingAudioUri.value = testUri
 
         val state = AudioTestFixtures.AppScreenState(
             activeRoute = "transcribe",
@@ -371,6 +374,6 @@ class AdaptiveNavigationRequirementTest {
 
         val rotated = AudioTestFixtures.simulateOrientationChange(state)
         assertEquals("transcribe", rotated.activeRoute)
-        assertEquals(testUri, TranscriberState.pendingAudioUri.value)
+        assertEquals(testUri, SpeechToTextState.pendingAudioUri.value)
     }
 }

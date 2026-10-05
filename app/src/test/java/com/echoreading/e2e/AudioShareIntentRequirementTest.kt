@@ -4,16 +4,14 @@ import android.net.Uri
 import com.echoreading.e2e.testutil.AudioTestFixtures
 import com.echoreading.e2e.testutil.ManifestTestParser
 import com.echoreading.share.ShareIntentHandler
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
 /**
  * E2E Requirement Tests for Requirement R2:
@@ -28,14 +26,14 @@ class AudioShareIntentRequirementTest {
 
     @Before
     fun setUp() {
-        TranscriberState.reset()
-        TranscriberState.pendingAudioUri.value = null
+        SpeechToTextState.reset()
+        SpeechToTextState.pendingAudioUri.value = null
     }
 
     @After
     fun tearDown() {
-        TranscriberState.reset()
-        TranscriberState.pendingAudioUri.value = null
+        SpeechToTextState.reset()
+        SpeechToTextState.pendingAudioUri.value = null
     }
 
     // =========================================================================
@@ -99,7 +97,7 @@ class AudioShareIntentRequirementTest {
     @Test
     fun f7_3_audioEventTriggerEmitsToLoadAudioEvent() {
         val testUri = AudioTestFixtures.createTestUri("content://media/external/audio/media/42")
-        val emitted = TranscriberState.loadAudioEvent.tryEmit(testUri)
+        val emitted = SpeechToTextState.loadAudioEvent.tryEmit(testUri)
         assertTrue("Emission into SharedFlow buffer must succeed", emitted)
     }
 
@@ -107,8 +105,8 @@ class AudioShareIntentRequirementTest {
     fun f7_4_coldStartIntentDispatchesToTranscriberState() {
         // Simulates cold start receiving audio URI
         val testUri = AudioTestFixtures.createTestUri("content://downloads/audio/recording.m4a")
-        TranscriberState.pendingAudioUri.value = testUri
-        assertEquals(testUri, TranscriberState.pendingAudioUri.value)
+        SpeechToTextState.pendingAudioUri.value = testUri
+        assertEquals(testUri, SpeechToTextState.pendingAudioUri.value)
     }
 
     @Test
@@ -116,11 +114,11 @@ class AudioShareIntentRequirementTest {
         val firstUri = AudioTestFixtures.createTestUri("content://media/first.mp3")
         val secondUri = AudioTestFixtures.createTestUri("content://media/second.wav")
 
-        TranscriberState.pendingAudioUri.value = firstUri
-        assertEquals(firstUri, TranscriberState.pendingAudioUri.value)
+        SpeechToTextState.pendingAudioUri.value = firstUri
+        assertEquals(firstUri, SpeechToTextState.pendingAudioUri.value)
 
-        TranscriberState.pendingAudioUri.value = secondUri
-        assertEquals(secondUri, TranscriberState.pendingAudioUri.value)
+        SpeechToTextState.pendingAudioUri.value = secondUri
+        assertEquals(secondUri, SpeechToTextState.pendingAudioUri.value)
     }
 
     // =========================================================================
@@ -129,43 +127,43 @@ class AudioShareIntentRequirementTest {
 
     @Test
     fun f8_1_pendingAudioUriInitiallyNull() {
-        assertNull(TranscriberState.pendingAudioUri.value)
+        assertNull(SpeechToTextState.pendingAudioUri.value)
     }
 
     @Test
     fun f8_2_pendingAudioUriHoldsStateIndefinitelyUntilConsumed() {
         val uri = AudioTestFixtures.createTestUri("content://provider/audio.opus")
-        TranscriberState.pendingAudioUri.value = uri
+        SpeechToTextState.pendingAudioUri.value = uri
 
         // Verification after simulated delay/lifecycle step
-        assertEquals(uri, TranscriberState.pendingAudioUri.value)
+        assertEquals(uri, SpeechToTextState.pendingAudioUri.value)
     }
 
     @Test
     fun f8_3_pendingAudioUriCanBeClearedAfterConsumption() {
         val uri = AudioTestFixtures.createTestUri("content://provider/audio.aac")
-        TranscriberState.pendingAudioUri.value = uri
-        assertNotNull(TranscriberState.pendingAudioUri.value)
+        SpeechToTextState.pendingAudioUri.value = uri
+        assertNotNull(SpeechToTextState.pendingAudioUri.value)
 
-        TranscriberState.pendingAudioUri.value = null
-        assertNull(TranscriberState.pendingAudioUri.value)
+        SpeechToTextState.pendingAudioUri.value = null
+        assertNull(SpeechToTextState.pendingAudioUri.value)
     }
 
     @Test
     fun f8_4_pendingAudioUriSurvivesStateSnapshotReset() {
         val uri = AudioTestFixtures.createTestUri("content://provider/audio.flac")
-        TranscriberState.pendingAudioUri.value = uri
-        TranscriberState.reset()
+        SpeechToTextState.pendingAudioUri.value = uri
+        SpeechToTextState.reset()
 
         // Persistent pending URI is kept in its dedicated StateFlow
-        assertEquals(uri, TranscriberState.pendingAudioUri.value)
+        assertEquals(uri, SpeechToTextState.pendingAudioUri.value)
     }
 
     @Test
     fun f8_5_pendingAudioUriSupportsFileScheme() {
         val fileUri = AudioTestFixtures.createTestUri("file:///storage/emulated/0/Music/sample.mp3")
-        TranscriberState.pendingAudioUri.value = fileUri
-        assertEquals("file", TranscriberState.pendingAudioUri.value?.scheme)
+        SpeechToTextState.pendingAudioUri.value = fileUri
+        assertEquals("file", SpeechToTextState.pendingAudioUri.value?.scheme)
     }
 
     // =========================================================================
@@ -280,10 +278,10 @@ class AudioShareIntentRequirementTest {
     @Test
     fun c2_shareAudioWhileRecordingActiveGracefullyUpdatesPendingUri() {
         // If user is recording when an external audio file is shared, pendingAudioUri is set
-        TranscriberState.isRecording.value = true
-        TranscriberState.pendingAudioUri.value = mockAudioUri
+        SpeechToTextState.isRecording.value = true
+        SpeechToTextState.pendingAudioUri.value = mockAudioUri
 
-        assertTrue(TranscriberState.isRecording.value)
-        assertEquals(mockAudioUri, TranscriberState.pendingAudioUri.value)
+        assertTrue(SpeechToTextState.isRecording.value)
+        assertEquals(mockAudioUri, SpeechToTextState.pendingAudioUri.value)
     }
 }
