@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -135,6 +136,8 @@ fun SpeechProcessStatusCard(
     snapshot: TranscriptionSnapshot,
     modifier: Modifier = Modifier,
     onResumeClick: () -> Unit = {},
+    selectedModelLabel: String? = null,
+    onChangeModel: () -> Unit = {},
 ) {
     val isProblem = snapshot.status == TranscriptionStatus.ERROR ||
             snapshot.status == TranscriptionStatus.MODEL_REQUIRED
@@ -212,6 +215,23 @@ fun SpeechProcessStatusCard(
                 )
             }
 
+            if (snapshot.status == TranscriptionStatus.IDLE && selectedModelLabel != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.transcribe_model_selected, selectedModelLabel),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onChangeModel) {
+                        Text(stringResource(R.string.transcribe_change_model))
+                    }
+                }
+            }
+
             if (isWorking && snapshot.status != TranscriptionStatus.RECORDING) {
                 LinearProgressIndicator(
                     progress = { snapshot.progress },
@@ -245,7 +265,9 @@ fun SpeechProcessStatusCard(
 fun SpeechProcessResultCard(
     ctx: Context,
     snapshot: TranscriptionSnapshot,
+    modelLabel: String,
     modifier: Modifier = Modifier,
+    onChangeModel: () -> Unit = {},
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -296,6 +318,21 @@ fun SpeechProcessResultCard(
                 style = MaterialTheme.typography.bodyLarge,
                 color = colorScheme.onSurface,
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.transcribe_model_used, modelLabel),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onChangeModel) {
+                    Text(stringResource(R.string.transcribe_change_model))
+                }
+            }
         }
     }
 }

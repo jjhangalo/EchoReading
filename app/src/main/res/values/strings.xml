@@ -124,6 +124,10 @@
     <string name="transcribe_speak_now">Falar agora</string>
     <string name="transcribe_stop_recording">Transcrever</string>
     <string name="transcribe_listening">A ouvir… Fale agora para transcrever</string>
+    <string name="transcribe_model_label">Modelo de transcrição</string>
+    <string name="transcribe_model_selected">Modelo selecionado: %1$s</string>
+    <string name="transcribe_model_used">Transcrito com: %1$s</string>
+    <string name="transcribe_change_model">Alterar</string>
     <string name="transcribe_open_actions">Abrir ações de transcrição</string>
     <string name="transcribe_cancel_in_progress">Cancelar processamento</string>
     <string name="transcribe_paused">Processamento pausado</string>
