@@ -1,42 +1,45 @@
 package com.echoreading.ui.screen
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.echoreading.R
-import com.echoreading.speech.SpeechToTextState
-import com.echoreading.speech.TranscriptionStatus
 import com.echoreading.speech.ModelDownloadStatus
 import com.echoreading.speech.OfflineSpeech
-import com.echoreading.ui.component.RecordVoiceCard
-import com.echoreading.ui.component.SelectAudioCard
+import com.echoreading.speech.SpeechToTextState
+import com.echoreading.speech.TranscriptionStatus
 import com.echoreading.ui.component.SpeechProcessResultCard
 import com.echoreading.ui.component.SpeechProcessStatusCard
+import com.echoreading.ui.component.TranscriptionActionFab
 
 @Composable
 fun SpeechToTexScreen(
@@ -44,14 +47,19 @@ fun SpeechToTexScreen(
 ) {
     val ctx = LocalContext.current
     val snapshot by SpeechToTextState.snapshot.collectAsState()
-    val isRecording by SpeechToTextState.isRecording.collectAsState()
-    val recDuration by SpeechToTextState.recordingDurationSec.collectAsState()
-    val recAmp by SpeechToTextState.recordingAmplitude.collectAsState()
     val download by SpeechToTextState.download.collectAsState()
     val selectedModel by SpeechToTextState.selectedModelId.collectAsState()
+    val workingStatuses = setOf(
+        TranscriptionStatus.RECORDING,
+        TranscriptionStatus.DECODING,
+        TranscriptionStatus.CHECKING_QUALITY,
+        TranscriptionStatus.TRANSCRIBING,
+    )
+    val isBusy = snapshot.status in workingStatuses ||
+            download.status == ModelDownloadStatus.DOWNLOADING
 
     val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
+        contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
             SpeechToTextState.startRecording(ctx)
@@ -59,7 +67,7 @@ fun SpeechToTexScreen(
             Toast.makeText(
                 ctx,
                 ctx.getString(R.string.transcribe_permission_needed),
-                Toast.LENGTH_SHORT
+                Toast.LENGTH_SHORT,
             ).show()
         }
     }
@@ -70,7 +78,7 @@ fun SpeechToTexScreen(
                 runCatching {
                     ctx.contentResolver.takePersistableUriPermission(
                         it,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
                     )
                 }
                 SpeechToTextState.transcribe(ctx, it)
@@ -91,74 +99,114 @@ fun SpeechToTexScreen(
         }
     }
 
+    val startRecording = {
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            SpeechToTextState.startRecording(ctx)
+        } else {
+            recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Column(
-            Modifier
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (selectedModel == null) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    ),
+                .verticalScroll(rememberScrollState())) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text = ctx.getString(R.string.transcribe_model_required),
-                            style = MaterialTheme.typography.bodyMedium,
+                    if (snapshot.status != TranscriptionStatus.IDLE) {
+                        SpeechProcessStatusCard(
+                            snapshot = snapshot,
+                            onResumeClick = { SpeechToTextState.resume(ctx) },
                         )
-                        if (download.status == ModelDownloadStatus.DOWNLOADING) {
-                            LinearProgressIndicator(
-                                progress = { download.progress },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Text("${(download.progress * 100).toInt()}%")
-                        } else {
-                            Button(
-                                onClick = {
-                                    SpeechToTextState.downloadModel(ctx, OfflineSpeech.DEFAULT_MODEL_ID)
-                                },
-                            ) {
-                                Text("Descarregar Whisper Base recomendado")
-                            }
-                        }
+                    }
+
+                    if (selectedModel == null) {
+                        ModelRequiredCard(
+                            downloading = download.status == ModelDownloadStatus.DOWNLOADING,
+                            progress = download.progress,
+                            onDownload = {
+                                SpeechToTextState.downloadModel(ctx, OfflineSpeech.DEFAULT_MODEL_ID)
+                            },
+                        )
+                    }
+
+                    if (snapshot.status == TranscriptionStatus.DONE && snapshot.transcribedText.isNotEmpty()) {
+                        SpeechProcessResultCard(ctx, snapshot)
                     }
                 }
-            }
 
-            RecordVoiceCard(ctx, isRecording, recDuration, recAmp) {
-                if (ContextCompat.checkSelfPermission(
-                        ctx,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 96.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    SpeechToTextState.startRecording(ctx)
-                } else {
-                    recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    Text(
+                        text = ctx.getString(R.string.stt_screen_record_tip),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Text(
+                        text = "${ctx.getString(R.string.transcribe_supported_formats)} · ${
+                            ctx.getString(
+                                R.string.transcribe_or_share
+                            )
+                        }",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
                 }
             }
 
-            SelectAudioCard { audioPicker.launch(arrayOf("audio/*")) }
+            TranscriptionActionFab(
+                busy = isBusy,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                onRecord = startRecording,
+                onSelectAudio = { audioPicker.launch(arrayOf("audio/*")) },
+                onCancel = { SpeechToTextState.cancel(ctx) },
+            )
+        }
+    }
+}
 
-            if (snapshot.status != TranscriptionStatus.IDLE && snapshot.status != TranscriptionStatus.RECORDING) {
-                SpeechProcessStatusCard(
-                    snapshot,
-                    onCancelClick = { SpeechToTextState.cancel(ctx) },
-                    onResumeClick = { SpeechToTextState.resume(ctx) },
-                )
-            }
-
-            if (snapshot.status == TranscriptionStatus.DONE && snapshot.transcribedText.isNotEmpty()) {
-                SpeechProcessResultCard(ctx, snapshot)
+@Composable
+private fun ModelRequiredCard(
+    downloading: Boolean,
+    progress: Float,
+    onDownload: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(
+                text = stringResource(R.string.transcribe_model_required),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (downloading) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                Text("${(progress * 100).toInt()}%")
+            } else {
+                Button(onClick = onDownload) {
+                    Text(stringResource(R.string.transcribe_model_download_btn))
+                }
             }
         }
     }
