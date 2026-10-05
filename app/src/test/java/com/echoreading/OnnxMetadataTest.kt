@@ -7,6 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assume.assumeTrue
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -63,7 +64,7 @@ class OnnxMetadataTest {
     @Test
     fun readMetadataFromBundledModel() {
         val bundledFile = findBundledModelFile()
-        assertNotNull("Bundled model pt_PT-tugao-medium.onnx must exist in assets", bundledFile)
+        assumeTrue("Bundled TTS model is provisioned outside Git", bundledFile != null)
         val file = checkNotNull(bundledFile)
 
         val metadata = OnnxMetadata.readMetadata(file)
@@ -82,7 +83,7 @@ class OnnxMetadataTest {
     @Test
     fun extractMetadataFromConfig() {
         val configFile = findBundledConfigFile()
-        assertNotNull("Bundled config pt_PT-tugao-medium.onnx.json must exist in assets", configFile)
+        assumeTrue("Bundled TTS config is provisioned outside Git", configFile != null)
         val file = checkNotNull(configFile)
 
         val metadata = OnnxMetadata.extractMetadataFromConfig(file)

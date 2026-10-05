@@ -111,14 +111,14 @@
     <string name="transcribe_done">Transcrição concluída</string>
     <string name="transcribe_copy">Copiar</string>
     <string name="transcribe_share">Partilhar</string>
-    <string name="transcribe_listen">Ouvir no Leitor</string>
+    <string name="transcribe_listen">Ecoar</string>
     <string name="transcribe_error_noisy">Áudio com demasiado ruído de fundo. Tente com um áudio mais limpo.</string>
     <string name="transcribe_error_silent">O áudio está em silêncio. Verifique o ficheiro.</string>
     <string name="transcribe_error_no_speech">Não foi detetada fala suficiente no áudio.</string>
     <string name="transcribe_error_low_volume">Volume do áudio demasiado baixo.</string>
     <string name="transcribe_error_clipped">Áudio com distorção ou volume excessivo. Fale um pouco mais afastado do microfone.</string>
     <string name="transcribe_model_download">A descarregar modelo de transcrição…</string>
-    <string name="transcribe_model_required">É necessário descarregar o modelo de transcrição (~150 MB) para utilizar esta funcionalidade.</string>
+    <string name="transcribe_model_required">Transferir o modelo de transcrição (~150 MB) para continuar.</string>
     <string name="transcribe_model_download_btn">Descarregar Modelo</string>
     <string name="transcribe_record_voice">Gravar Voz</string>
     <string name="transcribe_speak_now">Falar agora</string>
@@ -131,7 +131,7 @@
     <string name="stt_model_not_installed">Não Instalado (~150 MB)</string>
     <string name="stt_delete_confirm">Eliminar o modelo de transcrição Whisper do dispositivo?</string>
     <string name="home_screen_tip">Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.</string>
-    <string name="stt_screen_record_tip">Dica: Pode selecionar textos noutras aplicações e partilhar diretamente com o Echo Reading para leitura imediata.</string>
+    <string name="stt_screen_record_tip">Dica: Para melhores resultados, grave num ambiente silencioso e mantenha o telemóvel a cerca de 15cm da boca.</string>
     <string name="transcribe_error">Erro na Transcrição</string>
     <string name="transcription_label">Transcrição</string>
 </resources>

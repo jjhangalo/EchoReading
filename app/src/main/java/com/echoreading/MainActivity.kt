@@ -13,6 +13,7 @@ import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.ReadingStatus
 import com.echoreading.reader.ReaderState
 import com.echoreading.share.ShareIntentHandler
+import com.echoreading.speech.SpeechToTextState
 import com.echoreading.ui.EcoApp
 import com.echoreading.ui.theme.EcoTheme
 
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReaderState.restore(this)
+        SpeechToTextState.restore(this)
         ReadingHistory.init(this)
 
         if (savedInstanceState == null) {
@@ -55,8 +57,8 @@ class MainActivity : ComponentActivity() {
         if (action == Intent.ACTION_SEND) {
             val audioUri = ShareIntentHandler.extractAudioUri(intent)
             if (audioUri != null) {
-                com.echoreading.speech.SpeechToTextState.pendingAudioUri.value = audioUri
-                com.echoreading.speech.SpeechToTextState.loadAudioEvent.tryEmit(audioUri)
+                SpeechToTextState.pendingAudioUri.value = audioUri
+                SpeechToTextState.loadAudioEvent.tryEmit(audioUri)
             } else {
                 val sharedText = ShareIntentHandler.extractText(intent)
                 if (!sharedText.isNullOrBlank()) {

@@ -9,20 +9,22 @@ Leitor Android pessoal: escreve ou partilha texto, escolhe uma voz local e ouve-
 - Em campos de texto de outras aplicações, selecciona texto e escolhe **Ler em voz alta**. A opção depende do menu de selecção da aplicação de origem. O menu **Partilhar** com texto é outro ponto de entrada.
 - O painel rápido pode ser fechado enquanto a leitura continua. A notificação disponibiliza reproduzir/pausar, ±10 segundos, parar e repor. No controlo compacto do Android aparecem menos botões.
 - Para usar a voz noutras aplicações que aceitam motores TTS do Android, selecciona **Eco Leitura** nas definições de síntese de voz do dispositivo. A notificação do leitor só controla leituras iniciadas dentro do Eco Leitura.
+- No separador **Transcrever**, descarrega e selecciona um modelo Whisper antes de gravar ou escolher um ficheiro. Estão disponíveis Tiny (~104 MB), Base (~161 MB, recomendado) e Small (~375 MB); podem coexistir no dispositivo e funcionam offline depois da instalação.
+- É possível gravar voz, escolher um ficheiro de áudio ou partilhar áudio para a aplicação. O processamento suporta até 30 minutos, mostra o progresso por blocos e continua com uma notificação quando o ecrã bloqueia ou a aplicação perde foco. Downloads podem ser pausados e retomados.
 
 ## Desenvolvimento
 
 Requer JDK 21 e Android SDK 36.1. Para compilar e correr os testes locais:
 
 ```text
-./gradlew :app:assembleDebug :app:testDebugUnitTest
+./gradlew :app:testDebugUnitTest :app:verifySherpaPackaging
 ```
 
-O APK de desenvolvimento fica em `app/build/outputs/apk/debug/`. O primeiro arranque pode demorar a preparar os recursos de pronúncia no armazenamento interno. Não existe emulador ou dispositivo ligado neste ambiente, pelo que o funcionamento no telefone ainda precisa de ensaio.
+O APK de desenvolvimento fica em `app/build/outputs/apk/debug/`. O primeiro arranque pode demorar a preparar os recursos de pronúncia no armazenamento interno. Confirme gravação, transcrição de ficheiros e continuidade em segundo plano num dispositivo Android antes da distribuição.
 
 ## Recursos de voz
 
-- Runtime [sherpa-onnx v1.13.8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8), incluindo a API Kotlin e bibliotecas JNI para ARM e x86, em 32 e 64 bits.
+- Runtime [sherpa-onnx v1.13.8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8), obtido pelo AAR oficial e verificado no APK com bibliotecas JNI e ONNX Runtime para ARM e x86, em 32 e 64 bits.
 - Voz incluída [vits-piper-pt_PT-tugao-medium](https://k2-fsa.github.io/sherpa/onnx/tts/all/Portuguese/vits-piper-pt_PT-tugao-medium.html).
 - Vozes opcionais [pt_BR-edresson-low](https://huggingface.co/csukuangfj/vits-piper-pt_BR-edresson-low) e [en_US-amy-low](https://huggingface.co/csukuangfj/vits-piper-en_US-amy-low), fixadas por revisão e checksum no código.
 

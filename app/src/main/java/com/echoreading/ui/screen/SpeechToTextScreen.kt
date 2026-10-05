@@ -9,11 +9,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,6 +31,8 @@ import androidx.core.content.ContextCompat
 import com.echoreading.R
 import com.echoreading.speech.SpeechToTextState
 import com.echoreading.speech.TranscriptionStatus
+import com.echoreading.speech.ModelDownloadStatus
+import com.echoreading.speech.OfflineSpeech
 import com.echoreading.ui.component.RecordVoiceCard
 import com.echoreading.ui.component.SelectAudioCard
 import com.echoreading.ui.component.SpeechProcessResultCard
@@ -39,6 +47,8 @@ fun SpeechToTexScreen(
     val isRecording by SpeechToTextState.isRecording.collectAsState()
     val recDuration by SpeechToTextState.recordingDurationSec.collectAsState()
     val recAmp by SpeechToTextState.recordingAmplitude.collectAsState()
+    val download by SpeechToTextState.download.collectAsState()
+    val selectedModel by SpeechToTextState.selectedModelId.collectAsState()
 
     val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -55,8 +65,16 @@ fun SpeechToTexScreen(
     }
 
     val audioPicker =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            uri?.let { SpeechToTextState.transcribe(ctx, it) }
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                runCatching {
+                    ctx.contentResolver.takePersistableUriPermission(
+                        it,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+                SpeechToTextState.transcribe(ctx, it)
+            }
         }
 
     LaunchedEffect(Unit) {
@@ -84,6 +102,39 @@ fun SpeechToTexScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (selectedModel == null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                ) {
+                    Column(
+                        Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = ctx.getString(R.string.transcribe_model_required),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (download.status == ModelDownloadStatus.DOWNLOADING) {
+                            LinearProgressIndicator(
+                                progress = { download.progress },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text("${(download.progress * 100).toInt()}%")
+                        } else {
+                            Button(
+                                onClick = {
+                                    SpeechToTextState.downloadModel(ctx, OfflineSpeech.DEFAULT_MODEL_ID)
+                                },
+                            ) {
+                                Text("Descarregar Whisper Base recomendado")
+                            }
+                        }
+                    }
+                }
+            }
+
             RecordVoiceCard(ctx, isRecording, recDuration, recAmp) {
                 if (ContextCompat.checkSelfPermission(
                         ctx,
@@ -96,10 +147,14 @@ fun SpeechToTexScreen(
                 }
             }
 
-            SelectAudioCard { audioPicker.launch("audio/*") }
+            SelectAudioCard { audioPicker.launch(arrayOf("audio/*")) }
 
-            if (snapshot.status != TranscriptionStatus.IDLE) {
-                SpeechProcessStatusCard(snapshot, onCancelClick = SpeechToTextState::reset)
+            if (snapshot.status != TranscriptionStatus.IDLE && snapshot.status != TranscriptionStatus.RECORDING) {
+                SpeechProcessStatusCard(
+                    snapshot,
+                    onCancelClick = { SpeechToTextState.cancel(ctx) },
+                    onResumeClick = { SpeechToTextState.resume(ctx) },
+                )
             }
 
             if (snapshot.status == TranscriptionStatus.DONE && snapshot.transcribedText.isNotEmpty()) {

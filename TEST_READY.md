@@ -3,8 +3,8 @@
 **Status**: READY  
 **Test Suite Path**: `app/src/test/java/com/echoreading/e2e/`  
 **Execution Environment**: Local JVM Unit Testing (Gradle AGP 9.4.1 / Kotlin 2.2.20)  
-**Total Suite Size**: 145 New E2E Tests (193 Total Unit Tests)  
-**Pass Rate**: 100% (193/193 Passed, 0 Failures, 0 Skipped)  
+**Total Suite Size**: 512 JVM tests
+**Pass Rate**: 100% (509 passed, 0 failures, 3 skipped because the optional bundled TTS release assets are not checked into Git)
 
 ---
 
@@ -12,7 +12,7 @@
 
 To execute the entire unit and E2E test suite:
 ```powershell
-./gradlew testDebugUnitTest
+./gradlew testDebugUnitTest :app:verifySherpaPackaging
 ```
 *(On Windows Command Prompt / PowerShell, use `.\gradlew.bat testDebugUnitTest`)*
 
@@ -33,7 +33,7 @@ To run specific requirement test suites:
 
 To verify APK build and compilation:
 ```powershell
-./gradlew assembleDebug
+./gradlew assembleDebug :app:verifySherpaPackaging
 ```
 
 ---

@@ -260,6 +260,10 @@ class AudioCaptureQualityRequirementTest {
         val permissions = ManifestTestParser.parsePermissions()
         assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE"))
         assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MICROPHONE"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_DATA_SYNC"))
+        assertTrue(permissions.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING"))
+        assertTrue(permissions.contains("android.permission.WAKE_LOCK"))
     }
 
     @Test

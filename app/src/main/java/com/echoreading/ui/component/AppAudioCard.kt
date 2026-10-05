@@ -142,7 +142,7 @@ fun RecordVoiceCard(
                     }
 
                     Button(
-                        onClick = { SpeechToTextState.reset() },
+                        onClick = { SpeechToTextState.cancel(ctx) },
                         colors = buttonColors(colorScheme.error, colorScheme.onError)
                     ) {
                         Icon(Default.Cancel, null)
@@ -276,6 +276,7 @@ fun SpeechProcessStatusCard(
     snapshot: TranscriptionSnapshot,
     modifier: Modifier = Modifier,
     onCancelClick: () -> Unit,
+    onResumeClick: () -> Unit = {},
 ) {
     Card(
         modifier = modifier
@@ -304,7 +305,7 @@ fun SpeechProcessStatusCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (snapshot.status) {
-                        TranscriptionStatus.ERROR -> {
+                        TranscriptionStatus.ERROR, TranscriptionStatus.MODEL_REQUIRED -> {
                             Icon(
                                 Default.ErrorOutline,
                                 null,
@@ -333,6 +334,9 @@ fun SpeechProcessStatusCard(
                         TranscriptionStatus.DECODING -> stringResource(R.string.transcribe_decoding)
                         TranscriptionStatus.CHECKING_QUALITY -> stringResource(R.string.transcribe_checking_quality)
                         TranscriptionStatus.TRANSCRIBING -> stringResource(R.string.transcribe_in_progress)
+                        TranscriptionStatus.RECORDING -> stringResource(R.string.transcribe_listening)
+                        TranscriptionStatus.PAUSED -> "Processamento pausado"
+                        TranscriptionStatus.MODEL_REQUIRED -> "Modelo necessário"
                         TranscriptionStatus.DONE -> stringResource(R.string.transcribe_done)
                         TranscriptionStatus.ERROR -> stringResource(R.string.transcribe_error)
                         TranscriptionStatus.IDLE -> ""
@@ -341,14 +345,30 @@ fun SpeechProcessStatusCard(
                     Text(
                         text = statusText,
                         style = typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = if (snapshot.status == TranscriptionStatus.ERROR) colorScheme.error else colorScheme.onSurface
+                        color = if (snapshot.status == TranscriptionStatus.ERROR ||
+                            snapshot.status == TranscriptionStatus.MODEL_REQUIRED
+                        ) colorScheme.error else colorScheme.onSurface
                     )
                 }
 
                 when (snapshot.status) {
-                    TranscriptionStatus.TRANSCRIBING, TranscriptionStatus.DECODING -> {
+                    TranscriptionStatus.TRANSCRIBING,
+                    TranscriptionStatus.DECODING,
+                    TranscriptionStatus.CHECKING_QUALITY -> {
                         IconButton(onCancelClick, modifier = Modifier) {
                             Icon(Default.Cancel, null, tint = colorScheme.error)
+                        }
+                    }
+
+                    TranscriptionStatus.PAUSED -> {
+                        IconButton(onResumeClick, modifier = Modifier) {
+                            Icon(Default.PlayArrow, null, tint = colorScheme.primary)
+                        }
+                    }
+
+                    TranscriptionStatus.ERROR -> {
+                        IconButton(onResumeClick, modifier = Modifier) {
+                            Icon(Default.PlayArrow, null, tint = colorScheme.primary)
                         }
                     }
 
@@ -367,7 +387,9 @@ fun SpeechProcessStatusCard(
                 )
             }
 
-            if (snapshot.status == TranscriptionStatus.TRANSCRIBING) {
+            if (snapshot.status == TranscriptionStatus.TRANSCRIBING ||
+                snapshot.status == TranscriptionStatus.DECODING
+            ) {
                 LinearProgressIndicator(
                     progress = { snapshot.progress },
                     modifier = Modifier
@@ -376,13 +398,16 @@ fun SpeechProcessStatusCard(
                     color = colorScheme.primary,
                     trackColor = colorScheme.surfaceContainerHighest,
                 )
-            } else if (snapshot.status == TranscriptionStatus.ERROR) {
+            } else if (snapshot.status == TranscriptionStatus.ERROR ||
+                snapshot.status == TranscriptionStatus.MODEL_REQUIRED
+            ) {
                 // Convert standard error resources or show raw error
                 val errResId = when (snapshot.error) {
                     "transcribe_error_noisy" -> R.string.transcribe_error_noisy
                     "transcribe_error_silent" -> R.string.transcribe_error_silent
                     "transcribe_error_no_speech" -> R.string.transcribe_error_no_speech
                     "transcribe_error_low_volume" -> R.string.transcribe_error_low_volume
+                    "transcribe_error_clipped" -> R.string.transcribe_error_clipped
                     else -> 0
                 }
                 val errorText =

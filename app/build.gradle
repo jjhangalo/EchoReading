@@ -63,7 +63,31 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.9.0'
     implementation 'androidx.media3:media3-session:1.9.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
 }
 
+def debugApk = layout.buildDirectory.file('outputs/apk/debug/app-debug.apk')
+
+tasks.register('verifySherpaPackaging') {
+    dependsOn tasks.named('assembleDebug')
+    inputs.file(debugApk)
+    doLast {
+        def apk = debugApk.get().asFile
+        if (!apk.isFile()) throw new GradleException("Debug APK was not generated")
+        def zip = new java.util.zip.ZipFile(apk)
+        try {
+            ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'].each { abi ->
+                if (zip.getEntry("lib/$abi/libsherpa-onnx-jni.so") == null) {
+                    throw new GradleException("Missing Sherpa JNI library for $abi")
+                }
+                if (zip.getEntry("lib/$abi/libonnxruntime.so") == null) {
+                    throw new GradleException("Missing ONNX Runtime library for $abi")
+                }
+            }
+        } finally {
+            zip.close()
+        }
+    }
+}
