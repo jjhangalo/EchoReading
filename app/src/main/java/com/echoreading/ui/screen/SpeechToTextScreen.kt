@@ -13,19 +13,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,9 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.echoreading.R
+import com.echoreading.ui.component.AppBottomTipCard
 import com.echoreading.speech.ModelDownloadStatus
 import com.echoreading.speech.OfflineSpeech
 import com.echoreading.speech.SpeechToTextState
@@ -169,37 +163,17 @@ fun SpeechToTexScreen(
                     }
                 }
 
-                Surface(
+                AppBottomTipCard(
+                    text = "${ctx.getString(R.string.stt_screen_record_tip)}\n${
+                        ctx.getString(R.string.transcribe_supported_formats)
+                    } · ${
+                        ctx.getString(R.string.transcribe_or_share)
+                    }",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 96.dp, bottom = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                ) {
-                    Row(
-                        Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Icon(
-                            Icons.Default.Lightbulb,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .padding(top = 2.dp),
-                        )
-                        Text(
-                            text = "${ctx.getString(R.string.stt_screen_record_tip)}\n${
-                                ctx.getString(R.string.transcribe_supported_formats)
-                            } · ${
-                                ctx.getString(R.string.transcribe_or_share)
-                            }",
-                            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .padding(bottom = 72.dp),
+                )
             }
 
             TranscriptionActionFab(
