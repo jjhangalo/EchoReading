@@ -219,6 +219,12 @@ class ReaderPlaybackService : MediaSessionService() {
             stopSelf()
             return
         }
+        val markdown = MarkdownText.parse(text)
+        if (markdown.spokenText.isBlank()) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         getSystemService(NotificationManager::class.java)?.cancel(STATUS_NOTIFICATION_ID)
         val saveHistory = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("save_history", true)
         if (saveHistory) {
@@ -246,7 +252,7 @@ class ReaderPlaybackService : MediaSessionService() {
         player.clearMediaItems()
         timeline.clear()
         player.playlistMetadata = buildMediaMetadata(text, voiceId)
-        chunks = ReadingChunks.split(text)
+        chunks = markdown.readingChunks()
         completed = false
         wantsPlayback = true
         pendingPosition = positionMs.takeIf { it > 0 }
