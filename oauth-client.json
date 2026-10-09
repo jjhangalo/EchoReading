@@ -1,0 +1,11 @@
+{
+  "client_id": "https://jjhangalo.github.io/EchoReading/oauth-client.json",
+  "client_name": "Eco Leitura",
+  "client_uri": "https://github.com/jjhangalo/EchoReading",
+  "application_type": "native",
+  "redirect_uris": ["com.echoreading://oauth/elevenlabs"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "scope": "text_to_speech"
+}
