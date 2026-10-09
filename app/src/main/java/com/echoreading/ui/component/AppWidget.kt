@@ -29,9 +29,11 @@ import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
@@ -163,8 +165,10 @@ fun QuickReaderPopupWidget(
             // Voice selection & status
             StitchStatusVoiceBar(snapshot = snapshot, enabled = true)
 
-            // Transport controls (Rewind 10s, Play/Pause FAB, Forward 10s)
+            // Transport controls (Stop, Rewind 10s, Play/Pause FAB, Forward 10s)
             val isPlaying = snapshot.status == ReadingStatus.PLAYING
+            val isPreparing = snapshot.status == ReadingStatus.PREPARING
+            val isActive = isPreparing || isPlaying || snapshot.status == ReadingStatus.PAUSED
             Surface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                 color = colorScheme.surfaceContainer,
@@ -177,6 +181,26 @@ fun QuickReaderPopupWidget(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Stop
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isActive) colorScheme.errorContainer else colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable(enabled = isActive) {
+                                sendCommand(ctx, ReaderPlaybackService.ACTION_STOP)
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = stringResource(R.string.stop_reading),
+                                tint = if (isActive) colorScheme.onErrorContainer else colorScheme.outline,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
                     // Rewind 10s
                     Surface(
                         shape = CircleShape,
@@ -202,7 +226,7 @@ fun QuickReaderPopupWidget(
                         shadowElevation = 4.dp,
                         modifier = Modifier
                             .size(56.dp)
-                            .clickable {
+                            .clickable(enabled = !isPreparing) {
                                 if (!isPlaying && ContextCompat.checkSelfPermission(
                                         ctx, Manifest.permission.POST_NOTIFICATIONS
                                     ) != PackageManager.PERMISSION_GRANTED
@@ -231,14 +255,22 @@ fun QuickReaderPopupWidget(
                             }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) stringResource(R.string.pause_reading) else stringResource(
-                                    R.string.resume_reading
-                                ),
-                                tint = colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp)
-                            )
+                            if (isPreparing) {
+                                CircularProgressIndicator(
+                                    color = colorScheme.onPrimary,
+                                    strokeWidth = 3.dp,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            } else {
+                                Icon(
+                                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) stringResource(R.string.pause_reading) else stringResource(
+                                        R.string.resume_reading
+                                    ),
+                                    tint = colorScheme.onPrimary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                         }
                     }
 

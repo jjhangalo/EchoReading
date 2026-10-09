@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -362,8 +363,15 @@ fun ReaderHome() {
                                     )
                             )
                             Column {
+                                val readingLabel = when (snapshot.status) {
+                                    ReadingStatus.PREPARING -> "A PREPARAR O ÁUDIO"
+                                    ReadingStatus.PLAYING -> "EM LEITURA"
+                                    ReadingStatus.PAUSED -> "LEITURA EM PAUSA"
+                                    ReadingStatus.ERROR -> "ERRO NA LEITURA"
+                                    ReadingStatus.IDLE -> "PRONTO PARA LER"
+                                }
                                 Text(
-                                    "EM LEITURA • PARÁGRAFO 1/1",
+                                    readingLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -527,6 +535,7 @@ fun ReaderHome() {
 
                             // 3. Main Play/Pause FAB (64dp circle in solid primary with shadow)
                             val isPlaying = snapshot.status == ReadingStatus.PLAYING
+                            val isPreparing = snapshot.status == ReadingStatus.PREPARING
                             val canPlay = snapshot.status != ReadingStatus.PREPARING && (isPlaying ||
                                 snapshot.status == ReadingStatus.PAUSED || markdown.spokenText.isNotBlank())
                             Surface(
@@ -569,12 +578,20 @@ fun ReaderHome() {
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(36.dp)
-                                    )
+                                    if (isPreparing) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            strokeWidth = 3.dp,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
                                 }
                             }
 
