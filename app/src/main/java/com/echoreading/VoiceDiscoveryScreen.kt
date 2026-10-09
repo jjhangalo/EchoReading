@@ -4,36 +4,31 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -41,14 +36,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -58,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,7 +66,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,7 +73,10 @@ import com.echoreading.reader.WavFiles
 import com.echoreading.voice.CatalogVoice
 import com.echoreading.voice.OfflineVoice
 import com.echoreading.voice.VoiceCatalog
+import com.echoreading.voice.catalogVoiceCountryLabel
+import com.echoreading.voice.catalogVoiceGroupLabel
 import com.echoreading.voice.sampleGreetingFor
+import com.echoreading.voice.visibleCatalogVoices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -91,7 +87,6 @@ import java.util.Locale
 
 @OptIn(
     ExperimentalMaterial3Api::class,
-    ExperimentalLayoutApi::class,
     androidx.compose.foundation.ExperimentalFoundationApi::class,
 )
 @Composable
@@ -107,7 +102,8 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
     // Filter & search state
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFamily by remember { mutableStateOf<String?>(null) }
+    var selectedFamily by remember { mutableStateOf("pt") }
+    var showLanguageFilter by remember { mutableStateOf(false) }
 
     // Download state
     var downloadingKey by remember { mutableStateOf<String?>(null) }
@@ -199,19 +195,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
     // Filtered voices
     val filtered = remember(catalog, searchQuery, selectedFamily) {
-        catalog.filter { voice ->
-            val matchesFamily = selectedFamily == null ||
-                voice.languageFamily.equals(selectedFamily, ignoreCase = true)
-            val q = searchQuery.trim()
-            val matchesSearch = q.isBlank() ||
-                voice.name.contains(q, ignoreCase = true) ||
-                voice.languageEnglish.contains(q, ignoreCase = true) ||
-                voice.languageNative.contains(q, ignoreCase = true) ||
-                voice.languageCode.contains(q, ignoreCase = true) ||
-                voice.countryEnglish.contains(q, ignoreCase = true) ||
-                voice.key.contains(q, ignoreCase = true)
-            matchesFamily && matchesSearch
-        }
+        visibleCatalogVoices(catalog, selectedFamily, searchQuery)
     }
 
     // Available language families
@@ -291,7 +275,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Pesquisar por nome, idioma ou país…") },
+            placeholder = { Text("Pesquisar vozes", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             },
@@ -312,38 +296,56 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(10.dp))
 
-        // Language Filter Chips
+        // Language selection
         if (families.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
+            FilledTonalButton(
+                onClick = { showLanguageFilter = true },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                item {
-                    FilterChip(
-                        selected = selectedFamily == null,
-                        onClick = { selectedFamily = null },
-                        label = { Text("Todos (${catalog.size})") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-                items(families, key = { it.first }) { (code, name, count) ->
-                    FilterChip(
-                        selected = selectedFamily == code,
-                        onClick = {
-                            selectedFamily = if (selectedFamily == code) null else code
-                        },
-                        label = { Text("$name ($count)") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
+                Icon(Icons.Default.FilterList, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Idioma: ${if (selectedFamily == "pt") "Português" else families.firstOrNull { it.first == selectedFamily }?.second.orEmpty()}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
+        }
+
+        if (showLanguageFilter) {
+            AlertDialog(
+                onDismissRequest = { showLanguageFilter = false },
+                title = { Text("Selecionar idioma") },
+                text = {
+                    LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(families, key = { it.first }) { (code, name, count) ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedFamily = code
+                                    searchQuery = ""
+                                    showLanguageFilter = false
+                                }.padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (code == "pt") "Português" else name, Modifier.weight(1f))
+                                if (selectedFamily == code) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = "Selecionado",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLanguageFilter = false }) { Text("Fechar") }
+                }
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -449,12 +451,12 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (searchQuery.isNotEmpty() || selectedFamily != null) {
+                        if (searchQuery.isNotEmpty() || selectedFamily != "pt") {
                             Spacer(Modifier.height(6.dp))
                             OutlinedButton(
                                 onClick = {
                                     searchQuery = ""
-                                    selectedFamily = null
+                                    selectedFamily = "pt"
                                 }
                             ) {
                                 Text("Limpar filtros")
@@ -465,13 +467,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
             }
             else -> {
                 val groups = remember(filtered) {
-                    filtered.groupBy { voice ->
-                        if (voice.countryEnglish.isNotEmpty()) {
-                            "${voice.languageEnglish} (${voice.countryEnglish})"
-                        } else {
-                            voice.languageEnglish
-                        }
-                    }
+                    filtered.groupBy(::catalogVoiceGroupLabel)
                 }
 
                 LazyColumn(
@@ -622,8 +618,9 @@ private fun VoiceDiscoveryCard(
                         buildString {
                             val native = voice.languageNative.ifEmpty { voice.languageEnglish }
                             append(native)
-                            if (voice.countryEnglish.isNotEmpty()) {
-                                append(" • ${voice.countryEnglish}")
+                            val country = catalogVoiceCountryLabel(voice)
+                            if (country.isNotEmpty()) {
+                                append(" • $country")
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
