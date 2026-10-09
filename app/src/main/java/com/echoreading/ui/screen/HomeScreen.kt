@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -70,10 +71,12 @@ import androidx.core.content.ContextCompat
 import com.echoreading.R
 import com.echoreading.ui.component.AppBottomTipCard
 import com.echoreading.ui.component.SoundWave
+import com.echoreading.reader.MarkdownText
 import com.echoreading.reader.ReaderPlaybackService
 import com.echoreading.reader.ReaderState
 import com.echoreading.reader.ReadingStatus
 import com.echoreading.ui.component.StitchStatusVoiceBar
+import com.echoreading.ui.component.MarkdownVisualTransformation
 import com.echoreading.util.formatTime
 import com.echoreading.util.sendCommand
 import kotlinx.coroutines.delay
@@ -108,6 +111,12 @@ fun ReaderHome() {
     }
 
     val editable = snapshot.status == ReadingStatus.IDLE || snapshot.status == ReadingStatus.ERROR
+    val markdown = remember(input.text) { MarkdownText.parse(input.text) }
+    val accent = MaterialTheme.colorScheme.primary
+    val codeBackground = MaterialTheme.colorScheme.surfaceContainerHigh
+    val markdownTransformation = remember(markdown, accent, codeBackground) {
+        MarkdownVisualTransformation(markdown, accent, codeBackground)
+    }
 
     LaunchedEffect(snapshot.characterOffset, snapshot.text, snapshot.status) {
         if (!editable && snapshot.text != input.text) {
@@ -256,6 +265,7 @@ fun ReaderHome() {
                                 .fillMaxWidth()
                                 .height(160.dp),
                             enabled = editable,
+                            visualTransformation = markdownTransformation,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
@@ -269,8 +279,8 @@ fun ReaderHome() {
                     }
 
                     // Footnote: stats counter & estimated duration
-                    val words = remember(input.text) {
-                        if (input.text.isBlank()) 0 else input.text.split("\\s+".toRegex())
+                    val words = remember(markdown.spokenText) {
+                        if (markdown.spokenText.isBlank()) 0 else markdown.spokenText.split("\\s+".toRegex())
                             .count { it.isNotBlank() }
                     }
                     val chars = input.text.length
@@ -353,8 +363,15 @@ fun ReaderHome() {
                                     )
                             )
                             Column {
+                                val readingLabel = when (snapshot.status) {
+                                    ReadingStatus.PREPARING -> "A PREPARAR O ÁUDIO"
+                                    ReadingStatus.PLAYING -> "EM LEITURA"
+                                    ReadingStatus.PAUSED -> "LEITURA EM PAUSA"
+                                    ReadingStatus.ERROR -> "ERRO NA LEITURA"
+                                    ReadingStatus.IDLE -> "PRONTO PARA LER"
+                                }
                                 Text(
-                                    "EM LEITURA • PARÁGRAFO 1/1",
+                                    readingLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -518,13 +535,16 @@ fun ReaderHome() {
 
                             // 3. Main Play/Pause FAB (64dp circle in solid primary with shadow)
                             val isPlaying = snapshot.status == ReadingStatus.PLAYING
+                            val isPreparing = snapshot.status == ReadingStatus.PREPARING
+                            val canPlay = snapshot.status != ReadingStatus.PREPARING && (isPlaying ||
+                                snapshot.status == ReadingStatus.PAUSED || markdown.spokenText.isNotBlank())
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primary,
                                 shadowElevation = 6.dp,
                                 modifier = Modifier
                                     .size(64.dp)
-                                    .clickable {
+                                    .clickable(enabled = canPlay) {
                                         val active = snapshot.status == ReadingStatus.PLAYING ||
                                                 snapshot.status == ReadingStatus.PREPARING ||
                                                 snapshot.status == ReadingStatus.PAUSED
@@ -541,7 +561,7 @@ fun ReaderHome() {
                                         }
 
                                         if (!active) {
-                                            if (input.text.isNotBlank()) {
+                                            if (markdown.spokenText.isNotBlank()) {
                                                 sendCommand(
                                                     context,
                                                     ReaderPlaybackService.ACTION_READ,
@@ -558,12 +578,20 @@ fun ReaderHome() {
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(36.dp)
-                                    )
+                                    if (isPreparing) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            strokeWidth = 3.dp,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
                                 }
                             }
 

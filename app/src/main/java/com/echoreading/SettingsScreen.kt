@@ -61,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -69,11 +70,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Tab
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -557,11 +560,14 @@ private fun SettingsTheme(onBack: () -> Unit) {
 // ---------------------------------------------------------------------------
 // VIEW 3: VOZ (VOICE MANAGEMENT & AUDITION)
 // ---------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     val context = LocalContext.current
     val snapshot by ReaderState.snapshot.collectAsState()
     val scope = rememberCoroutineScope()
+    var showTranscription by rememberSaveable { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
@@ -641,7 +647,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -669,23 +674,167 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                 )
             }
             Text(
-                "MODELOS DE VOZ",
+                "VOZ E TRANSCRIÇÃO",
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
+        PrimaryTabRow(
+            selectedTabIndex = if (showTranscription) 1 else 0,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+        ) {
+            Tab(
+                selected = !showTranscription,
+                onClick = {
+                    showTranscription = false
+                    scope.launch { scrollState.animateScrollTo(0) }
+                },
+                text = { Text("Leitura") },
+            )
+            Tab(
+                selected = showTranscription,
+                onClick = {
+                    showTranscription = true
+                    scope.launch { scrollState.animateScrollTo(0) }
+                },
+                text = { Text("Transcrição") },
+            )
+        }
+
+        Column(
+            Modifier.weight(1f).verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+        if (!showTranscription) {
+
         // -------------------------------------------------------------------
-        // SECTION A: VOZES INSTALADAS (TTS)
+        // Voz em uso e ajustes de leitura
+        // -------------------------------------------------------------------
+        val activeVoice = OfflineVoice.option(context, snapshot.voiceId)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            border = CardDefaults.outlinedCardBorder().copy(
+                brush = androidx.compose.ui.graphics.SolidColor(
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                )
+            )
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("VOZ EM USO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            activeVoice.label,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Speed Tuning
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Velocidade de Leitura",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                "${snapshot.speed}x",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+
+                    val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        speeds.forEach { s ->
+                            val selected = snapshot.speed == s
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
+                                    ReaderState.save(context)
+                                },
+                                label = {
+                                    Text(
+                                        "${s}x",
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Audio Sample Audition Button
+                Button(
+                    onClick = { playSample(activeVoice, snapshot.speed) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
+                ) {
+                    Icon(
+                        if (isDemonstratingActive) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (isDemonstratingActive) "A reproduzir demonstração…" else "Ouvir Demonstração da Voz",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Vozes disponíveis no dispositivo
         // -------------------------------------------------------------------
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
-                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -696,7 +845,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        "VOZES INSTALADAS (TTS)",
+                        "VOZES NO DISPOSITIVO",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
@@ -706,7 +855,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.width(8.dp))
                 Text(
                     "${installedVoices.size} vozes • ${String.format(Locale.US, "%.0f", installedMb)} MB",
                     style = MaterialTheme.typography.labelSmall,
@@ -822,8 +970,51 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             }
         }
 
+        // "Discover more voices" entry point
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onDiscoverVoices() },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ),
+        ) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    Icons.Default.CloudDownload,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Encontrar novas vozes",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        "Escolher idioma e transferir do catálogo",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         // -------------------------------------------------------------------
-        // SECTION B: DISPONÍVEIS PARA TRANSFERÊNCIA
+        // Transferência rápida das vozes sugeridas
         // -------------------------------------------------------------------
         if (downloadableVoices.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -844,7 +1035,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            "DISPONÍVEIS PARA TRANSFERÊNCIA",
+                            "TRANSFERÊNCIA RÁPIDA",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
@@ -856,7 +1047,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Nuvem TTS",
+                        "Sugestões",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
@@ -1049,182 +1240,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             }
         }
 
-        // "Discover more voices" entry point
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onDiscoverVoices() },
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            ),
-        ) {
-            Row(
-                Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(
-                    Icons.Default.CloudDownload,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp),
-                )
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Descobrir Mais Vozes",
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        "Explorar catálogo online · 177 vozes · 53 idiomas",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // -------------------------------------------------------------------
-        // SECTION C: AJUSTES DA VOZ SELECIONADA
-        // -------------------------------------------------------------------
-        val activeVoice = OfflineVoice.option(context, snapshot.voiceId)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
-            )
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            "Ajustes da Voz (${activeVoice.label.substringAfterLast("·").trim()})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            "Ativa",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-                // Speed Tuning
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "Velocidade de Leitura",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                "${snapshot.speed}x",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-
-                    val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        speeds.forEach { s ->
-                            val selected = snapshot.speed == s
-                            FilterChip(
-                                selected = selected,
-                                onClick = {
-                                    ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
-                                    ReaderState.save(context)
-                                },
-                                label = {
-                                    Text(
-                                        "${s}x",
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            )
-                        }
-                    }
-                }
-
-                // Audio Sample Audition Button
-                Button(
-                    onClick = { playSample(activeVoice, snapshot.speed) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
-                ) {
-                    Icon(
-                        if (isDemonstratingActive) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (isDemonstratingActive) "A reproduzir demonstração…" else "Ouvir Demonstração da Voz",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-            }
         }
 
         // Voice Deletion Confirmation Dialog
@@ -1268,7 +1283,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         // -------------------------------------------------------------------
         // SECTION D: TRANSCRIÇÃO DE VOZ (STT)
         // -------------------------------------------------------------------
-        SpeechModelManagement(
+        if (showTranscription) SpeechModelManagement(
             installedIds = installedSpeechModels,
             selectedId = selectedSpeechModel,
             download = speechDownload,
@@ -1304,6 +1319,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         }
 
         Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
