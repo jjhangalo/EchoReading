@@ -47,11 +47,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -270,47 +271,15 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
 
-        // Search Bar
-        OutlinedTextField(
+        ElevatedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Pesquisar vozes", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            )
+            languageName = if (selectedFamily == "pt") "Português"
+                else families.firstOrNull { it.first == selectedFamily }?.second.orEmpty(),
+            filterEnabled = families.isNotEmpty(),
+            onClear = { searchQuery = "" },
+            onFilter = { showLanguageFilter = true },
         )
-
-        Spacer(Modifier.height(10.dp))
-
-        // Language selection
-        if (families.isNotEmpty()) {
-            FilledTonalButton(
-                onClick = { showLanguageFilter = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.FilterList, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Idioma: ${if (selectedFamily == "pt") "Português" else families.firstOrNull { it.first == selectedFamily }?.second.orEmpty()}",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
 
         if (showLanguageFilter) {
             AlertDialog(
@@ -567,6 +536,54 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ElevatedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    languageName: String,
+    filterEnabled: Boolean,
+    onClear: () -> Unit,
+    onFilter: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 4.dp,
+    ) {
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Pesquisar vozes", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (value.isNotEmpty()) {
+                        IconButton(onClick = onClear) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
+                        }
+                    }
+                    IconButton(onClick = onFilter, enabled = filterEnabled) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtrar idioma. Atual: $languageName",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+            ),
+        )
     }
 }
 

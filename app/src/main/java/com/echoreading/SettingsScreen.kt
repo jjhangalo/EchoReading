@@ -61,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -69,11 +70,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Tab
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -557,6 +560,7 @@ private fun SettingsTheme(onBack: () -> Unit) {
 // ---------------------------------------------------------------------------
 // VIEW 3: VOZ (VOICE MANAGEMENT & AUDITION)
 // ---------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     val context = LocalContext.current
@@ -676,24 +680,26 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             )
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+        PrimaryTabRow(
+            selectedTabIndex = if (showTranscription) 1 else 0,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+        ) {
+            Tab(
                 selected = !showTranscription,
                 onClick = {
                     showTranscription = false
                     scope.launch { scrollState.animateScrollTo(0) }
                 },
-                label = { Text("Leitura (TTS)") },
-                modifier = Modifier.weight(1f)
+                text = { Text("Leitura") },
             )
-            FilterChip(
+            Tab(
                 selected = showTranscription,
                 onClick = {
                     showTranscription = true
                     scope.launch { scrollState.animateScrollTo(0) }
                 },
-                label = { Text("Transcrição (STT)") },
-                modifier = Modifier.weight(1f)
+                text = { Text("Transcrição") },
             )
         }
 
