@@ -71,6 +71,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,7 +88,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import com.echoreading.reader.ReaderState
 import com.echoreading.reader.ReadingEntry
 import com.echoreading.reader.ReadingHistory
@@ -102,7 +102,7 @@ import java.util.Locale
 
 @OptIn(FlowPreview::class)
 @Composable
-fun HistoryScreen(navController: NavController) {
+fun HistoryScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -121,6 +121,7 @@ fun HistoryScreen(navController: NavController) {
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
 
     val searchFlow = remember { MutableStateFlow("") }
+    val searchText by searchFlow.collectAsState()
 
     suspend fun queryDb(append: Boolean = false) {
         isLoading = true
@@ -189,7 +190,7 @@ fun HistoryScreen(navController: NavController) {
                         )
                         Spacer(Modifier.width(8.dp))
                         TextField(
-                            value = searchFlow.value,
+                            value = searchText,
                             onValueChange = { searchFlow.value = it },
                             placeholder = {
                                 Text(
@@ -207,7 +208,7 @@ fun HistoryScreen(navController: NavController) {
                                 unfocusedIndicatorColor = Color.Transparent,
                             ),
                         )
-                        if (searchFlow.value.isNotBlank()) {
+                        if (searchText.isNotBlank()) {
                             IconButton(onClick = { searchFlow.value = "" }) {
                                 Icon(Icons.Default.Clear, contentDescription = "Limpar", Modifier.size(18.dp))
                             }
@@ -339,15 +340,9 @@ fun HistoryScreen(navController: NavController) {
                     StitchHistoryCard(
                         entry = entry,
                         onLoadToReader = {
-                            ReaderState.snapshot.value = ReaderState.snapshot.value.copy(text = entry.text)
-                            context.getSharedPreferences("reading", Context.MODE_PRIVATE)
-                                .edit()
-                                .putString("draft", entry.text)
-                                .apply()
-                            navController.navigate("home") {
-                                popUpTo("home") { inclusive = true }
-                                launchSingleTop = true
-                            }
+                            // EcoApp observes the canonical load event and routes
+                            // to Home, so this screen does not navigate twice.
+                            ReaderState.loadText(context, entry.text)
                         },
                         onToggleFavorite = {
                             scope.launch {

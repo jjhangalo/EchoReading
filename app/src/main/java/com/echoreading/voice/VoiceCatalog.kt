@@ -32,6 +32,33 @@ data class CatalogVoice(
     val configSizeBytes: Long,
 )
 
+fun visibleCatalogVoices(voices: List<CatalogVoice>, language: String, query: String): List<CatalogVoice> {
+    val search = query.trim()
+    return voices.filter { voice ->
+        voice.languageFamily.equals(language, ignoreCase = true) &&
+            (search.isEmpty() || listOf(
+                voice.name, voice.languageEnglish, voice.languageNative,
+                voice.languageCode, voice.countryEnglish, catalogVoiceCountryLabel(voice), voice.key,
+            ).any { it.contains(search, ignoreCase = true) })
+    }.let { filtered ->
+        if (language.equals("pt", true)) filtered.sortedBy { if (it.languageRegion.equals("PT", true)) 0 else 1 }
+        else filtered
+    }
+}
+
+fun catalogVoiceCountryLabel(voice: CatalogVoice): String = when {
+    !voice.languageFamily.equals("pt", true) -> voice.countryEnglish
+    voice.languageRegion.equals("PT", true) -> "Portugal"
+    voice.languageRegion.equals("BR", true) -> "Brasil"
+    else -> voice.countryEnglish
+}
+
+fun catalogVoiceGroupLabel(voice: CatalogVoice): String {
+    val country = catalogVoiceCountryLabel(voice)
+    val language = if (voice.languageFamily.equals("pt", true)) "Português" else voice.languageEnglish
+    return if (country.isEmpty()) language else "$language ($country)"
+}
+
 object VoiceCatalog {
     const val CATALOG_URL =
         "https://huggingface.co/rhasspy/piper-voices/resolve/main/voices.json"

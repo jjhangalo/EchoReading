@@ -573,11 +573,16 @@ class AdversarialSpeedContinuityTest {
 
     @Test
     fun testAbrirNoLeitorButtonConstructsValidExpansionIntent() {
-        // Inspect ReaderUi.kt lines 1344-1350 to ensure intent configuration matches contract:
-        val readerUiCode = File(findProjectRoot(), "app/src/main/java/com/echoreading/ReaderUi.kt").readText()
+        val project = findProjectRoot()
+        val source = listOf(
+            File(project, "app/src/main/java/com/echoreading/ReaderUi.kt"),
+            File(project, "app/src/main/java/com/echoreading/ui/component/AppWidget.kt"),
+        ).firstOrNull { it.isFile }
+        assertNotNull("Reader expansion source must exist", source)
+        val readerUiCode = checkNotNull(source).readText()
 
         assertTrue(
-            "ReaderUi.kt must reference MainActivity::class.java for expansion",
+            "Reader expansion must reference MainActivity::class.java",
             readerUiCode.contains("MainActivity::class.java")
         )
         assertTrue(

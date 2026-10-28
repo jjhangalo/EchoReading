@@ -1,12 +1,11 @@
 package com.echoreading.e2e
 
-import android.net.Uri
 import com.echoreading.e2e.testutil.AudioTestFixtures
 import com.echoreading.reader.ReaderSnapshot
 import com.echoreading.reader.ReaderState
 import com.echoreading.share.ShareIntentHandler
 import com.echoreading.speech.AudioQualityChecker
-import com.echoreading.speech.TranscriberState
+import com.echoreading.speech.SpeechToTextState
 import com.echoreading.speech.TranscriptionStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,16 +30,16 @@ class EndToEndWorkflowsR2Test {
     fun setUp() {
         tempDir = Files.createTempDirectory("e2e-workflow-r2").toFile()
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
-        TranscriberState.pendingAudioUri.value = null
+        SpeechToTextState.reset()
+        SpeechToTextState.pendingAudioUri.value = null
     }
 
     @After
     fun tearDown() {
         tempDir.deleteRecursively()
         ReaderState.snapshot.value = ReaderSnapshot()
-        TranscriberState.reset()
-        TranscriberState.pendingAudioUri.value = null
+        SpeechToTextState.reset()
+        SpeechToTextState.pendingAudioUri.value = null
     }
 
     // =========================================================================
@@ -54,18 +53,18 @@ class EndToEndWorkflowsR2Test {
         assertEquals("transcribe", currentRoute)
 
         // Step 2: User taps Mic button to start recording
-        TranscriberState.isRecording.value = true
-        TranscriberState.recordingDurationSec.value = 1
-        TranscriberState.recordingAmplitude.value = 0.45f
-        assertTrue(TranscriberState.isRecording.value)
+        SpeechToTextState.isRecording.value = true
+        SpeechToTextState.recordingDurationSec.value = 1
+        SpeechToTextState.recordingAmplitude.value = 0.45f
+        assertTrue(SpeechToTextState.isRecording.value)
 
         // Step 3: Audio samples captured (16kHz mono PCM)
         val capturedSamples = AudioTestFixtures.createCleanSpeechAudio(durationMs = 2000, sampleRate = 16000)
         assertEquals(32000, capturedSamples.size)
 
         // Step 4: User taps Stop recording
-        TranscriberState.isRecording.value = false
-        assertFalse(TranscriberState.isRecording.value)
+        SpeechToTextState.isRecording.value = false
+        assertFalse(SpeechToTextState.isRecording.value)
 
         // Step 5: Audio quality check evaluates captured speech
         val quality = AudioQualityChecker.analyze(capturedSamples, 16000)
@@ -74,16 +73,16 @@ class EndToEndWorkflowsR2Test {
 
         // Step 6: Transcription engine produces text result
         val recognizedText = "Reunião de alinhamento do projeto concluída com sucesso."
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = recognizedText,
             progress = 1.0f
         )
-        assertEquals(TranscriptionStatus.DONE, TranscriberState.snapshot.value.status)
-        assertEquals(recognizedText, TranscriberState.snapshot.value.transcribedText)
+        assertEquals(TranscriptionStatus.DONE, SpeechToTextState.snapshot.value.status)
+        assertEquals(recognizedText, SpeechToTextState.snapshot.value.transcribedText)
 
         // Step 7: User copies text to clipboard (content invariant)
-        val clipboardText = TranscriberState.snapshot.value.transcribedText
+        val clipboardText = SpeechToTextState.snapshot.value.transcribedText
         assertEquals(recognizedText, clipboardText)
 
         // Step 8: User taps "Ouvir no Leitor" -> Text loaded into ReaderState and route navigates to "home"
@@ -107,18 +106,18 @@ class EndToEndWorkflowsR2Test {
         assertEquals(voiceNoteUri, extractedUri)
 
         // Step 2: MainActivity receives share intent and updates pending audio URI
-        TranscriberState.pendingAudioUri.value = extractedUri
+        SpeechToTextState.pendingAudioUri.value = extractedUri
 
         // Step 3: App navigation automatically routes to "transcribe"
         val activeRoute = "transcribe"
         assertEquals("transcribe", activeRoute)
 
         // Step 4: Transcriber transitions to DECODING state
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DECODING,
             audioFileName = "voice_note_9876.ogg"
         )
-        assertEquals(TranscriptionStatus.DECODING, TranscriberState.snapshot.value.status)
+        assertEquals(TranscriptionStatus.DECODING, SpeechToTextState.snapshot.value.status)
 
         // Step 5: Decoded audio evaluated by AudioQualityChecker
         val decodedSamples = AudioTestFixtures.createCleanSpeechAudio(durationMs = 1500)
@@ -127,13 +126,13 @@ class EndToEndWorkflowsR2Test {
 
         // Step 6: Transcription completed and ready for user
         val expectedText = "Mensagem de voz sobre a entrega de amanhã."
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = expectedText,
             progress = 1.0f
         )
-        assertEquals(TranscriptionStatus.DONE, TranscriberState.snapshot.value.status)
-        assertEquals(expectedText, TranscriberState.snapshot.value.transcribedText)
+        assertEquals(TranscriptionStatus.DONE, SpeechToTextState.snapshot.value.status)
+        assertEquals(expectedText, SpeechToTextState.snapshot.value.transcribedText)
     }
 
     // =========================================================================
@@ -150,12 +149,12 @@ class EndToEndWorkflowsR2Test {
         assertFalse(qualityFailure.isTranscribable)
         assertEquals("transcribe_error_clipped", qualityFailure.rejectionReason)
 
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.ERROR,
             error = qualityFailure.rejectionReason
         )
-        assertEquals(TranscriptionStatus.ERROR, TranscriberState.snapshot.value.status)
-        assertEquals("transcribe_error_clipped", TranscriberState.snapshot.value.error)
+        assertEquals(TranscriptionStatus.ERROR, SpeechToTextState.snapshot.value.status)
+        assertEquals("transcribe_error_clipped", SpeechToTextState.snapshot.value.error)
 
         // Step 3: User receives feedback and re-records with calibrated microphone level
         val cleanAudio = AudioTestFixtures.createCleanSpeechAudio(durationMs = 1500, amplitude = 0.5f)
@@ -163,14 +162,14 @@ class EndToEndWorkflowsR2Test {
 
         // Step 4: Quality passes and transcription completes
         assertTrue(qualitySuccess.isTranscribable)
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = "Segunda gravação limpa e bem sucedida.",
             error = null
         )
-        assertEquals(TranscriptionStatus.DONE, TranscriberState.snapshot.value.status)
-        assertNull(TranscriberState.snapshot.value.error)
-        assertEquals("Segunda gravação limpa e bem sucedida.", TranscriberState.snapshot.value.transcribedText)
+        assertEquals(TranscriptionStatus.DONE, SpeechToTextState.snapshot.value.status)
+        assertNull(SpeechToTextState.snapshot.value.error)
+        assertEquals("Segunda gravação limpa e bem sucedida.", SpeechToTextState.snapshot.value.transcribedText)
     }
 
     // =========================================================================
@@ -190,7 +189,7 @@ class EndToEndWorkflowsR2Test {
 
         // Step 3: User switches to Transcribe screen and performs a transcription
         val transcribedText = "Texto transcrito a partir de memorando de áudio."
-        TranscriberState.snapshot.value = TranscriberState.snapshot.value.copy(
+        SpeechToTextState.snapshot.value = SpeechToTextState.snapshot.value.copy(
             status = TranscriptionStatus.DONE,
             transcribedText = transcribedText
         )
@@ -199,8 +198,8 @@ class EndToEndWorkflowsR2Test {
             activeRoute = "transcribe",
             readerDraftText = ReaderState.snapshot.value.text,
             readerCharOffset = 25,
-            transcriberText = TranscriberState.snapshot.value.transcribedText,
-            transcriberStatus = TranscriberState.snapshot.value.status.name,
+            transcriberText = SpeechToTextState.snapshot.value.transcribedText,
+            transcriberStatus = SpeechToTextState.snapshot.value.status.name,
             isRecording = false
         )
 
@@ -276,9 +275,9 @@ class EndToEndWorkflowsR2Test {
         assertEquals("transcribe_error_silent", emptyReport.rejectionReason)
 
         // Step 3: System remains fully stable, user starts valid in-app recording
-        TranscriberState.isRecording.value = true
+        SpeechToTextState.isRecording.value = true
         val validAudio = AudioTestFixtures.createCleanSpeechAudio(durationMs = 1200)
-        TranscriberState.isRecording.value = false
+        SpeechToTextState.isRecording.value = false
 
         val validReport = AudioQualityChecker.analyze(validAudio, 16000)
         assertTrue("Subsequent valid recording must succeed without system failure", validReport.isTranscribable)

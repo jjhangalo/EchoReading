@@ -1,100 +1,144 @@
-# Test Suite Readiness Report — EchoReading 2.0
+# Test Readiness — EchoReading 2.3.0
 
-**Status**: READY  
-**Test Suite Path**: `app/src/test/java/com/echoreading/e2e/`  
-**Execution Environment**: Local JVM Unit Testing (Gradle AGP 9.4.1 / Kotlin 2.2.20)  
-**Total Suite Size**: 145 New E2E Tests (193 Total Unit Tests)  
-**Pass Rate**: 100% (193/193 Passed, 0 Failures, 0 Skipped)  
+**Status**: JVM suite passing; four-test Android instrumentation suite passing
+on the Pixel_6 API 37 x86_64 emulator
 
----
+**Source sets**: `app/src/test/java/` (JVM), `app/src/androidTest/java/`
+(instrumentation)
 
-## 1. Test Runner Command
+**Environment**: local JVM through Gradle; booted emulator/device for
+instrumentation (Windows: `.\gradlew.bat`)
 
-To execute the entire unit and E2E test suite:
+**Current result**: 552 JVM tests, 0 failures, 0 errors, 1 skipped (30 suites);
+4 Android instrumentation tests, 0 failures, 0 errors, 0 skipped
+
+**Last verified**: 2026-10-21
+
+## What this suite is
+
+This is a fast JVM suite. It exercises pure Kotlin logic, parsing, file/state
+helpers, and static manifest/resource contracts. It does **not** launch Android
+services, an emulator, Media3 playback, or Compose UI. `testOptions.unitTests.returnDefaultValues = true`
+is enabled, so Android framework calls that reach the JVM stubs can return default
+values; the suite is not a substitute for device testing.
+
+The one skipped test is `OnnxMetadataTest.extractMetadataFromConfig`: it requires
+an optional bundled TTS config file that is provisioned outside Git. With the
+large Tugão model absent from a fresh checkout the suite historically reported
+three skips; after `fetchBundledVoice` the current run reports one skip.
+
+## Run commands
+
 ```powershell
-./gradlew testDebugUnitTest
-```
-*(On Windows Command Prompt / PowerShell, use `.\gradlew.bat testDebugUnitTest`)*
+# JVM tests
+.\gradlew.bat :app:testDebugUnitTest --console=plain
 
-To run specific requirement test suites:
-```powershell
-# Run R1 Voice Model Tests (Tiers 1, 2, 3)
-./gradlew testDebugUnitTest --tests "com.echoreading.e2e.VoiceModelRequirementTest"
+# Android instrumentation (requires a booted emulator/device)
+.\gradlew.bat :app:connectedDebugAndroidTest --console=plain
 
-# Run R2 Ecoar Action Tests (Tiers 1, 2, 3)
-./gradlew testDebugUnitTest --tests "com.echoreading.e2e.EcoarActionRequirementTest"
+# Bundled voice (must pass before release packaging)
+.\gradlew.bat :app:verifyBundledVoice --console=plain
 
-# Run R3 Share Sheet Tests (Tiers 1, 2, 3)
-./gradlew testDebugUnitTest --tests "com.echoreading.e2e.ShareSheetRequirementTest"
-
-# Run Tier 4 Real-World Application Workflows
-./gradlew testDebugUnitTest --tests "com.echoreading.e2e.EndToEndReadingWorkflowsTest"
+# Debug APK + JNI/ABI packaging check
+.\gradlew.bat :app:verifySherpaPackaging --console=plain
 ```
 
-To verify APK build and compilation:
-```powershell
-./gradlew assembleDebug
+HTML results: `app/build/reports/tests/testDebugUnitTest/index.html` and
+`app/build/reports/androidTests/connected/debug/index.html`
+
+Machine-readable results: `app/build/test-results/testDebugUnitTest/` and
+`app/build/outputs/androidTest-results/connected/debug/`
+
+## Current suite layout
+
+| Group | Classes | Tests | Focus |
+|---|---:|---:|---|
+| `com.echoreading.e2e` | 9 | 260 | Requirement-oriented reader, navigation, share, model, and workflow tests |
+| `com.echoreading` adversarial | 8 | 174 | Stress, boundary, wire-format, speed-continuity, and model-repair probes |
+| `com.echoreading` core | 9 | 82 | Markdown, metadata, audio cache, playback notifications/media URIs, chunks, catalog, ElevenLabs |
+| `share`, `speech`, `voice` subpackages | 4 | 36 | Intent extraction, audio quality, Whisper catalog, eSpeak data |
+| **Total** | **30** | **552** | |
+
+The test names use historical “Tier 1–4” and “E2E” labels. Treat them as
+JVM-level scenarios, not end-to-end Android tests.
+
+## Android instrumentation suite
+
+`app/src/androidTest/java/com/echoreading/ReaderAndroidSmokeTest.kt` runs on a
+real emulator/device. Compose/Espresso's injection path fails on API 37
+(`InputManager.getInstance()` reflection), so the tests use
+`ActivityScenario` plus UIAutomator.
+
+| Test | Covers |
+|---|---|
+| `appLaunchesOnHome` | Process launch, Home content, and the four bottom tabs |
+| `shareFromSettingsUpdatesDraftAndReturnsHome` | `ACTION_SEND` received while Settings is visible; draft/state/Home routing |
+| `loadTextResetsPositionAndEpoch` | Canonical `ReaderState.loadText` reset and epoch bump |
+| `playbackSeekSpeedAndHistoryLoad` | Real TTS playback, position growth, speed restart, seek, and history load while playing |
+
+Current device result (Pixel_6, API 37, x86_64): **4 tests, 0 failures, 0
+errors, 0 skipped** in 26.145 s in the final post-R13 run (58.067 s in the first
+run).
+
+## Test utilities
+
+- `android/net/TestUri.kt`: minimal URI implementation for JVM tests.
+- `e2e/testutil/AudioTestFixtures.kt`: waveform/DSP fixtures.
+- `e2e/testutil/IntentTestContracts.kt`: intent extraction and share simulation.
+- `e2e/testutil/ManifestTestParser.kt`: manifest/string/theme XML parsing.
+- `e2e/testutil/ProtobufTestOracle.kt`: independent protobuf wire-format oracle.
+
+## Verification evidence
+
+```text
+> Task :app:testDebugUnitTest
+BUILD SUCCESSFUL
+30 suites, 552 tests, 0 failures, 0 errors, 1 skipped
+
+> Task :app:connectedDebugAndroidTest
+BUILD SUCCESSFUL
+4 tests, 0 failures, 0 errors, 0 skipped (Pixel_6 API 37 x86_64)
 ```
 
----
+Additional packaging evidence:
 
-## 2. Test Architecture & Structure
+- `:app:verifyBundledVoice` passed with the provisioned 63,201,425-byte model.
+- `:app:verifySherpaPackaging` passed; the debug APK contains the Tugão `.onnx`
+  and JNI libraries for `arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`.
+- `:app:assembleRelease` and `:app:bundleRelease` passed on 2026-10-21 with R8
+  minification/resource shrinking. The final release APK is 200,385,009 bytes
+  unsigned (200,439,120 bytes after test signing); the final AAB is 124,650,909
+  bytes. A temporary test key signed a release build for installation and smoke
+  testing; it is not a production signing key.
+- Manual device checks also covered the notification permission prompt/channel,
+  pause/resume through on-screen controls and media keys, slider seek, restart,
+  speed change, share from Settings, history load while playing, and opening the
+  voice picker during playback.
+- Durable voice download was checked manually in debug and signed release builds:
+  start a 60.2 MB catalog download, `am force-stop` mid-transfer, relaunch, and
+  observe WorkManager reschedule and complete; Settings/Voice Discovery then
+  reported the voice as installed. This path has no automated test yet.
+- History-database failure recovery (R13) was checked manually on debug with a
+  0-byte read-only `history.db`: playback still completed, the unusable database
+  was recreated, and one history entry was written. No `FATAL EXCEPTION` occurred.
 
-```
-app/src/test/java/com/echoreading/e2e/
-├── VoiceModelRequirementTest.kt       # 43 Tests covering R1 (Features 1-4)
-├── EcoarActionRequirementTest.kt      # 63 Tests covering R2 (Features 5-10)
-├── ShareSheetRequirementTest.kt       # 33 Tests covering R3 (Features 11-13)
-├── EndToEndReadingWorkflowsTest.kt    # 6 Real-World End-to-End User Workflows
-└── testutil/
-    ├── ProtobufTestOracle.kt          # Reference Protobuf wire format parser/injector
-    ├── IntentTestContracts.kt         # Evaluators for Android Intents & Expansion
-    └── ManifestTestParser.kt          # XML DOM parser for AndroidManifest & Resources
-```
+## Android coverage and remaining gaps
 
----
+Covered automatically on the emulator: launch/Home, share from Settings,
+`loadText` reset, real playback start, position growth, speed restart, seek, and
+history load while playing.
 
-## 3. Tier Coverage Breakdown
+Still not covered automatically:
 
-| Tier | Category | Scope | Test Count | Pass Rate |
-|---|---|---|---|---|
-| **Tier 1** | **Feature Happy Paths** | Covers primary functionality for Features 1-13 (>=5 tests per feature) | **65 tests** | 100% |
-| **Tier 2** | **Boundary & Corner Cases** | Edge cases, 0-byte files, nulls, extreme sizes, special chars (>=5 tests per feature) | **65 tests** | 100% |
-| **Tier 3** | **Cross-Feature Interactions** | Pairwise combinations (speed changes during playback, share during cache, etc.) | **9 tests** | 100% |
-| **Tier 4** | **Real-World Workflows** | Complete multi-step end-to-end user journeys (browser selection, note share, voice repair) | **6 tests** | 100% |
-| **Pre-existing / Unit** | **Domain Unit Tests** | VoiceCatalogTest, ReaderAudioCacheTest, ReaderPlaybackNotificationTest, ReadingChunksTest, OnnxMetadataTest | **48 tests** | 100% |
-| **TOTAL** | | | **193 tests** | **100%** |
+- A change to a second installed voice model (only the bundled voice is
+  installed on the test device).
+- Rotation/adaptive layout and other real Compose rendering paths.
+- Notification permission denial and foreground-service restrictions.
+- Voice-download continuation across navigation and process death in an
+  automated test (manually verified in debug and signed release).
+- History-database corruption/read-only recovery in an automated test (manually
+  simulated in debug).
+- Audible-output quality and real codec/device behavior.
+- Signed production installation and Play policy checks.
 
----
-
-## 4. Requirement Verification Matrix
-
-### R1. Piper Voice Model Metadata Injection & Crash Resolution
-- **Feature 1 (Metadata Injection)**: Verified Protobuf field 14 wire encoding (`0x72`), key tag (`0x0A`), value tag (`0x12`), sample rate string encoding (`"22050"`), and weight preservation.
-- **Feature 2 (Retroactive Repair)**: Verified in-place detection and patching of unpatched models, idempotency on repeated repairs, companion `.onnx.json` extraction, and bundled model verification (`pt_PT-tugao-medium.onnx`).
-- **Feature 3 (Model File Size Check Fix)**: Verified `>=` validation prevents infinite re-download loops caused by injected metadata overhead.
-- **Feature 4 (Metadata Unit Testing)**: Verified varint round-trip serialization, multi-entry metadata, and UTF-8 handling.
-
-### R2. System-wide Text Selection Action ("Ecoar") & Quick Access Bottom Sheet
-- **Feature 5 ("Ecoar" Action Label)**: Verified `ACTION_PROCESS_TEXT` intent filter, MIME type `text/plain`, `QuickReadActivity` declaration, and "Ecoar" action label.
-- **Feature 6 (Translucent Bottom Sheet)**: Verified `QuickReadTheme` window attributes (`windowIsTranslucent=true`, `windowCloseOnTouchOutside=true`, transparent background) and layout configuration (`Gravity.BOTTOM`).
-- **Feature 7 (Immediate Auto-Playback)**: Verified `ACTION_READ` dispatch, text sanitization, chunk segmentation, and timeline zero-positioning.
-- **Feature 8 (Playback Controls)**: Verified Play/Pause actions, speed multipliers (0.75x, 1.0x, 1.25x, 1.5x, 2.0x), timeline mapping, and audio cache speed differentiation.
-- **Feature 9 ("Abrir no Leitor" Expansion)**: Verified expansion intent target (`MainActivity`), `EXTRA_TEXT`, `FLAG_ACTIVITY_SINGLE_TOP`, and `FLAG_ACTIVITY_CLEAR_TOP`.
-- **Feature 10 (Background Continuity)**: Verified `FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK`, audio cache persistence on activity dismiss, and notification title formatting.
-
-### R3. System Share Sheet Direct Routing to Reader
-- **Feature 11 (Share Sheet Direct Routing)**: Verified `ACTION_SEND` (`text/plain`) targeting `MainActivity` (`singleTop`).
-- **Feature 12 (Intent Extraction & Routing)**: Verified plain text extraction, rejection of non-text MIME types/actions, and cold/warm start delivery handling.
-- **Feature 13 (Reader Input Synchronization)**: Verified text loading, cursor reset to 0, status reset to `IDLE`, and chunk generation.
-
----
-
-## 5. Verification Proof
-
-- Execution: `./gradlew testDebugUnitTest`
-  - Output: `BUILD SUCCESSFUL in 7s` (24 actionable tasks)
-  - Results Report: `app/build/reports/tests/testDebugUnitTest/index.html` (193 tests, 0 failures)
-- Execution: `./gradlew assembleDebug`
-  - Output: `BUILD SUCCESSFUL in 7s` (36 actionable tasks)
-  - Output APK: `app/build/outputs/apk/debug/app-debug.apk`
+See `docs/REMEDIATION.md` R9-R13 for the tracked follow-ups.

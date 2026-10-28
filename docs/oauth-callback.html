@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Eco Leitura · ElevenLabs</title>
+  <style>
+    body { font: 1rem system-ui, sans-serif; max-width: 30rem; margin: 10vh auto; padding: 1.5rem; color: #25233b; }
+    a { display: inline-block; margin-top: 1rem; padding: .8rem 1.2rem; border-radius: 1rem; background: #4934d4; color: white; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <h1>Voltar à Eco Leitura</h1>
+  <p id="status">A concluir a ligação à ElevenLabs…</p>
+  <a id="open-app" hidden>Abrir Eco Leitura</a>
+  <script>
+    const incoming = new URLSearchParams(location.search);
+    const state = incoming.get('state');
+    const code = incoming.get('code');
+    const error = incoming.get('error');
+    history.replaceState(null, '', location.pathname);
+    if (state && (code || error)) {
+      const callback = new URL('com.echoreading://oauth/elevenlabs');
+      for (const key of ['state', 'code', 'error', 'iss']) {
+        const value = incoming.get(key);
+        if (value) callback.searchParams.set(key, value);
+      }
+      const link = document.getElementById('open-app');
+      link.href = callback.href;
+      link.hidden = false;
+      document.getElementById('status').textContent = 'Se a aplicação não abrir automaticamente, toque no botão.';
+      location.replace(callback.href);
+    } else {
+      document.getElementById('status').textContent = 'Resposta de autenticação inválida. Volte à aplicação e tente novamente.';
+    }
+  </script>
+</body>
+</html>

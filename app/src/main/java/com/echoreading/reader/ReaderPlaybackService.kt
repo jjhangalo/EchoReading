@@ -8,7 +8,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
@@ -26,6 +28,9 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.echoreading.R
 import com.echoreading.MainActivity
+import com.echoreading.voice.ElevenLabsAuth
+import com.echoreading.voice.ElevenLabsMcp
+import com.echoreading.voice.NetworkAccess
 import com.echoreading.voice.OfflineVoice
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -35,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,8 +56,12 @@ class ReaderPlaybackService : MediaSessionService() {
     private var generation: Job? = null
     private var audioDir: File? = null
     private var completed = false
+    private var usingElevenLabs = false
+    private var providerKey = "offline"
     private var wantsPlayback = false
     private var pendingPosition: Long? = null
+    private var positionTicker: Job? = null
+    private var activeEpoch = 0L
     @Volatile private var generationId = 0
 
     override fun onCreate() {
@@ -75,8 +85,24 @@ class ReaderPlaybackService : MediaSessionService() {
             )
             addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) updateStatus(ReadingStatus.PLAYING)
-                    else if (ReaderState.snapshot.value.status == ReadingStatus.PLAYING) updateStatus(ReadingStatus.PAUSED)
+                    if (isPlaying) {
+                        // Refresh the position and its monotonic timestamp
+                        // before exposing PLAYING. Otherwise the UI can briefly
+                        // extrapolate the old pause sample across the whole
+                        // paused interval and jump forward on resume.
+                        updatePosition()
+                        updateStatus(ReadingStatus.PLAYING)
+                        startPositionTicker()
+                    } else {
+                        // Publish the exact pause/end position before the
+                        // service ticker stops, so the UI does not snap back
+                        // to a sample that can be up to 500 ms old.
+                        updatePosition()
+                        stopPositionTicker()
+                        if (ReaderState.snapshot.value.status == ReadingStatus.PLAYING) {
+                            updateStatus(ReadingStatus.PAUSED)
+                        }
+                    }
                 }
 
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -99,6 +125,7 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    Log.e(TAG, "Player error encountered during playback", error)
                     failReading(generationId)
                 }
             })
@@ -167,18 +194,18 @@ class ReaderPlaybackService : MediaSessionService() {
             }
             ACTION_BACK -> moveBy(-10_000)
             ACTION_FORWARD -> moveBy(10_000)
+            ACTION_SEEK -> seekTo(
+                intent.getLongExtra(EXTRA_POSITION, ReaderState.snapshot.value.positionMs),
+            )
             ACTION_RESET -> resetReading()
             ACTION_STOP -> stopReading()
-            ACTION_SPEED -> {
-                val speed = intent.getFloatExtra(EXTRA_SPEED, ReaderState.snapshot.value.speed)
-                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = speed)
-                ReaderState.save(this)
-                val currentText = intent.getStringExtra(EXTRA_TEXT).orEmpty().ifBlank { ReaderState.snapshot.value.text }
-                if (currentText.isNotBlank() && (ReaderState.snapshot.value.status == ReadingStatus.PLAYING || ReaderState.snapshot.value.status == ReadingStatus.PREPARING)) {
-                    val pos = intent.getLongExtra(EXTRA_POSITION, ReaderState.snapshot.value.positionMs)
-                    startReading(currentText, pos, ReaderState.snapshot.value.voiceId, speed)
-                }
-            }
+            ACTION_SPEED, ACTION_VOICE -> applyPlaybackConfig(
+                text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
+                    .ifBlank { ReaderState.snapshot.value.text },
+                positionMs = intent.getLongExtra(EXTRA_POSITION, ReaderState.snapshot.value.positionMs),
+                voiceId = intent.getStringExtra(EXTRA_VOICE) ?: ReaderState.snapshot.value.voiceId,
+                speed = intent.getFloatExtra(EXTRA_SPEED, ReaderState.snapshot.value.speed),
+            )
         }
         super.onStartCommand(intent, flags, startId)
         return START_NOT_STICKY
@@ -216,12 +243,35 @@ class ReaderPlaybackService : MediaSessionService() {
             stopSelf()
             return
         }
+        val markdown = MarkdownText.parse(text)
+        if (markdown.spokenText.isBlank()) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        activeEpoch = ReaderState.epoch
         getSystemService(NotificationManager::class.java)?.cancel(STATUS_NOTIFICATION_ID)
+        val onlineVoiceId = ElevenLabsAuth.selectedVoiceId(this)
+            ?.takeIf { ElevenLabsAuth.useForReading(this) && NetworkAccess.isAvailable(this) }
+        if (onlineVoiceId != null &&
+            markdown.spokenText.length > ElevenLabsAuth.maxCharactersPerReading(this)
+        ) {
+            ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
+                status = ReadingStatus.ERROR,
+                error = "O texto excede o limite ElevenLabs definido para esta aplicação.",
+            )
+            ReaderState.save(this)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
         val saveHistory = getSharedPreferences("settings", MODE_PRIVATE).getBoolean("save_history", true)
         if (saveHistory) {
             scope.launch { ReadingHistory.add(this@ReaderPlaybackService, text) }
         }
-        val cached = ReaderAudioCache.get(text, voiceId, speed)
+        usingElevenLabs = onlineVoiceId != null
+        providerKey = onlineVoiceId?.let { "elevenlabs:$it" } ?: "offline"
+        val cached = ReaderAudioCache.get(text, voiceId, speed, providerKey = providerKey)
         if (cached != null) {
             playFromCache(cached, positionMs)
             return
@@ -243,31 +293,76 @@ class ReaderPlaybackService : MediaSessionService() {
         player.clearMediaItems()
         timeline.clear()
         player.playlistMetadata = buildMediaMetadata(text, voiceId)
-        chunks = ReadingChunks.split(text)
+        chunks = markdown.readingChunks()
         completed = false
         wantsPlayback = true
         pendingPosition = positionMs.takeIf { it > 0 }
         audioDir = File(cacheDir, "reading-audio/$id").apply { mkdirs() }
         ReaderState.snapshot.value = ReaderSnapshot(
             text = text,
+            loadEpoch = ReaderState.epoch,
             status = ReadingStatus.PREPARING,
             positionMs = positionMs,
             durationMs = 0,
             voiceId = voiceId,
             speed = speed,
+            positionUpdatedAtNanos = System.nanoTime(),
         )
         ReaderState.save(this)
         val destination = audioDir ?: return
         generation = scope.launch(Dispatchers.IO) {
             try {
+                var targetVoice = OfflineVoice.option(this@ReaderPlaybackService, voiceId)
+                if (onlineVoiceId == null && !OfflineVoice.isInstalled(this@ReaderPlaybackService, targetVoice)) {
+                    if (targetVoice.url != null) {
+                        try {
+                            OfflineVoice.install(this@ReaderPlaybackService, targetVoice) { _, _ -> }
+                        } catch (c: CancellationException) {
+                            throw c
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to download voice ${targetVoice.id}, checking fallback", e)
+                        }
+                    }
+                    if (!isActive || generationId != id) return@launch
+                    if (!OfflineVoice.isInstalled(this@ReaderPlaybackService, targetVoice)) {
+                        val installedVoices = OfflineVoice.allVoices(this@ReaderPlaybackService)
+                            .filter { OfflineVoice.isInstalled(this@ReaderPlaybackService, it) }
+                        val fallback = installedVoices.firstOrNull {
+                            val targetLang = targetVoice.languageCode?.take(2) ?: targetVoice.id.take(2)
+                            val itLang = it.languageCode?.take(2) ?: it.id.take(2)
+                            targetLang.equals(itLang, ignoreCase = true)
+                        } ?: installedVoices.firstOrNull()
+                        if (fallback != null) {
+                            targetVoice = fallback
+                            withContext(Dispatchers.Main) {
+                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = fallback.id)
+                                ReaderState.save(this@ReaderPlaybackService)
+                            }
+                        } else {
+                            throw IllegalStateException(getString(R.string.download_failed))
+                        }
+                    }
+                }
+
+                val onlineReader = onlineVoiceId?.let {
+                    ElevenLabsMcp.openReader(this@ReaderPlaybackService, it, speed)
+                }
                 chunks.forEachIndexed { index, chunk ->
                     if (!isActive || generationId != id) return@launch
-                    // ponytail: native generation cannot stop mid-chunk; discard it after a stop.
-                    val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, voiceId, speed)
+                    val file: File
+                    val duration: Long
+                    if (onlineReader != null) {
+                        // ponytail: blocking HTTP can finish after Stop; generationId discards that audio.
+                        file = File(destination, "$index.mp3")
+                        duration = onlineReader.synthesize(chunk.text, file)
+                    } else {
+                        // ponytail: native generation cannot stop mid-chunk; discard it after a stop.
+                        val audio = OfflineVoice.synthesize(this@ReaderPlaybackService, chunk.text, targetVoice.id, speed)
+                        file = File(destination, "$index.wav")
+                        duration = WavFiles.write(file, audio)
+                    }
                     if (!isActive || generationId != id) return@launch
-                    val file = File(destination, "$index.wav")
-                    val duration = WavFiles.write(file, audio)
-                    withContext(Dispatchers.Main) { addAudio(id, index, file, duration) }
+                    withContext(Dispatchers.Main) { addAudio(id, index, file, duration, text, targetVoice.id) }
                 }
                 withContext(Dispatchers.Main) {
                     if (generationId != id) return@withContext
@@ -281,15 +376,26 @@ class ReaderPlaybackService : MediaSessionService() {
                 }
             } catch (_: CancellationException) {
                 return@launch
-            } catch (_: Exception) {
-                withContext(Dispatchers.Main) { failReading(id) }
-            } catch (_: LinkageError) {
-                withContext(Dispatchers.Main) { failReading(id) }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Audio synthesis failed for chunk in generation $id", e)
+                withContext(Dispatchers.Main) {
+                    if (NetworkAccess.isConnectionFailure(e) ||
+                        (onlineVoiceId != null && !NetworkAccess.isAvailable(this@ReaderPlaybackService))) {
+                        if (generationId == id) stopReading()
+                    } else {
+                        failReading(id, if (onlineVoiceId != null)
+                            "Não foi possível usar esta voz ElevenLabs. Escolha outra voz e tente novamente."
+                        else e.message)
+                    }
+                }
             }
         }
     }
 
     private fun playFromCache(cached: CachedReading, positionMs: Long) {
+        activeEpoch = ReaderState.epoch
+        providerKey = cached.providerKey
+        usingElevenLabs = providerKey.startsWith("elevenlabs:")
         val previous = generation
         val previousDir = audioDir
         generationId++
@@ -313,10 +419,11 @@ class ReaderPlaybackService : MediaSessionService() {
 
         val mediaItems = cached.durations.mapIndexed { index, duration ->
             timeline.add(duration)
-            val file = File(cached.audioDir, "$index.wav")
+            val extension = if (usingElevenLabs) "mp3" else "wav"
+            val file = File(cached.audioDir, "$index.$extension")
             MediaItem.Builder()
                 .setMediaId(index.toString())
-                .setUri(file.toURI().toString())
+                .setUri(Uri.fromFile(file))
                 .setMediaMetadata(buildMediaMetadata(cached.text, cached.voiceId))
                 .build()
         }
@@ -333,12 +440,14 @@ class ReaderPlaybackService : MediaSessionService() {
 
         ReaderState.snapshot.value = ReaderSnapshot(
             text = cached.text,
+            loadEpoch = ReaderState.epoch,
             status = ReadingStatus.PLAYING,
             positionMs = targetPosition,
             durationMs = timeline.preparedMs,
             characterOffset = chunks.getOrNull(initialItem)?.start ?: 0,
             voiceId = cached.voiceId,
             speed = cached.speed,
+            positionUpdatedAtNanos = System.nanoTime(),
         )
         ReaderState.save(this)
 
@@ -346,37 +455,38 @@ class ReaderPlaybackService : MediaSessionService() {
         if (wantsPlayback) player.play()
     }
 
-    private fun failReading(id: Int) {
-        if (generationId != id) return
+    private fun failReading(id: Int, errorMessage: String? = null) {
+        if (generationId != id || ReaderState.epoch != activeEpoch) return
         generationId++
         generation?.cancel()
         generation = null
+        stopPositionTicker()
         wantsPlayback = false
         ReaderAudioCache.clear()
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
             status = ReadingStatus.ERROR,
-            error = getString(R.string.reading_error),
+            error = errorMessage ?: getString(R.string.reading_error),
         )
         player.stop()
         player.clearMediaItems()
         ReaderState.save(this)
         showStatusNotification(
             getString(R.string.reading_error_title),
-            getString(R.string.reading_error),
+            errorMessage ?: getString(R.string.reading_error),
         )
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    private fun addAudio(id: Int, index: Int, file: File, durationMs: Long) {
+    private fun addAudio(id: Int, index: Int, file: File, durationMs: Long, text: String, voiceId: String) {
         if (generationId != id) return
         timeline.add(durationMs)
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(durationMs = timeline.preparedMs)
         player.addMediaItem(
             MediaItem.Builder()
                 .setMediaId(index.toString())
-                .setUri(file.toURI().toString())
-                .setMediaMetadata(buildMediaMetadata())
+                .setUri(Uri.fromFile(file))
+                .setMediaMetadata(buildMediaMetadata(text, voiceId))
                 .build(),
         )
         val requested = pendingPosition
@@ -408,22 +518,100 @@ class ReaderPlaybackService : MediaSessionService() {
         if (pendingPosition == null) player.play()
     }
 
+    private fun applyPlaybackConfig(text: String, positionMs: Long, voiceId: String, speed: Float) {
+        val current = ReaderState.snapshot.value
+        // A queued config command from an old session must not overwrite the
+        // text/position of a newly loaded draft.
+        if (current.status == ReadingStatus.IDLE || current.status == ReadingStatus.ERROR) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        // Prefer the player's live position; the intent position can be one
+        // snapshot behind while audio is playing.
+        val effectivePosition = pendingPosition
+            ?: if (timeline.size > 0) currentPosition() else positionMs
+        ReaderState.snapshot.value = current.copy(
+            text = text.ifBlank { current.text },
+            positionMs = effectivePosition,
+            voiceId = voiceId,
+            speed = speed,
+            positionUpdatedAtNanos = System.nanoTime(),
+        )
+        ReaderState.save(this)
+        when (current.status) {
+            ReadingStatus.PLAYING, ReadingStatus.PREPARING -> {
+                if (text.isNotBlank()) {
+                    startReading(text, effectivePosition, voiceId, speed)
+                } else {
+                    discardPreparedAudio()
+                }
+            }
+            ReadingStatus.PAUSED -> discardPreparedAudio()
+            else -> {
+                // No session is active; there is no prepared audio to invalidate.
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
+    }
+
+    /**
+     * A paused session keeps the position but cannot reuse audio generated with
+     * the old speed/voice. Drop it; the next Play regenerates from the saved
+     * position using the new config.
+     */
+    private fun discardPreparedAudio() {
+        generationId++
+        generation?.cancel()
+        generation = null
+        stopPositionTicker()
+        wantsPlayback = false
+        pendingPosition = null
+        player.stop()
+        player.clearMediaItems()
+        timeline.clear()
+        completed = false
+        ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
+            status = ReadingStatus.PAUSED,
+            durationMs = 0,
+            positionUpdatedAtNanos = System.nanoTime(),
+        )
+        ReaderState.save(this)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     private fun moveBy(deltaMs: Long) {
         if (timeline.size == 0) {
             if (deltaMs > 0 && generation != null) pendingPosition = (pendingPosition ?: 0) + deltaMs
             return
         }
-        val current = pendingPosition ?: currentPosition()
-        val target = (current + deltaMs).coerceAtLeast(0)
+        seekTo((pendingPosition ?: currentPosition()) + deltaMs)
+    }
+
+    private fun seekTo(positionMs: Long) {
+        val target = positionMs.coerceAtLeast(0)
+        if (timeline.size == 0) {
+            if (generation != null) pendingPosition = target
+            ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
+                positionMs = target,
+                positionUpdatedAtNanos = System.nanoTime(),
+            )
+            ReaderState.save(this)
+            return
+        }
         if (target > timeline.preparedMs && !completed) {
+            val shouldPlay = player.isPlaying || wantsPlayback
             pendingPosition = target
-            wantsPlayback = player.isPlaying || wantsPlayback
+            wantsPlayback = shouldPlay
             player.pause()
-            updateStatus(ReadingStatus.PREPARING)
+            updateStatus(if (shouldPlay) ReadingStatus.PREPARING else ReadingStatus.PAUSED)
         } else {
             pendingPosition = null
             seekGlobal(target.coerceAtMost(timeline.preparedMs))
         }
+        ReaderState.save(this)
     }
 
     private fun resetReading() {
@@ -436,6 +624,7 @@ class ReaderPlaybackService : MediaSessionService() {
             status = ReadingStatus.PAUSED,
             positionMs = 0,
             characterOffset = 0,
+            positionUpdatedAtNanos = System.nanoTime(),
         )
         ReaderState.save(this)
     }
@@ -447,6 +636,7 @@ class ReaderPlaybackService : MediaSessionService() {
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
             positionMs = positionMs,
             characterOffset = chunks.getOrNull(item)?.start ?: 0,
+            positionUpdatedAtNanos = System.nanoTime(),
         )
     }
 
@@ -454,24 +644,45 @@ class ReaderPlaybackService : MediaSessionService() {
         if (timeline.size == 0) ReaderState.snapshot.value.positionMs
         else timeline.globalPosition(player.currentMediaItemIndex, player.currentPosition)
 
+    private fun startPositionTicker() {
+        if (positionTicker?.isActive == true) return
+        positionTicker = scope.launch {
+            while (isActive && player.isPlaying) {
+                updatePosition()
+                delay(500)
+            }
+        }
+    }
+
+    private fun stopPositionTicker() {
+        positionTicker?.cancel()
+        positionTicker = null
+    }
+
     private fun updatePosition() {
-        if (timeline.size == 0) return
+        if (ReaderState.epoch != activeEpoch || timeline.size == 0) return
         val index = player.currentMediaItemIndex
+        val position = currentPosition()
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
-            positionMs = currentPosition(),
+            positionMs = position,
             characterOffset = chunks.getOrNull(index)?.start ?: 0,
+            positionUpdatedAtNanos = System.nanoTime(),
         )
     }
 
     private fun updateStatus(status: ReadingStatus) {
+        if (ReaderState.epoch != activeEpoch) return
         ReaderState.snapshot.value = ReaderState.snapshot.value.copy(status = status, error = null)
     }
 
     private fun stopReading(atEnd: Boolean = false) {
+        val sessionStillCurrent = ReaderState.epoch == activeEpoch
         val position = if (atEnd) 0L else currentPosition()
         val currentSnapshot = ReaderState.snapshot.value
         val dir = audioDir
-        if (atEnd && completed && dir != null && chunks.isNotEmpty() && timeline.size == chunks.size) {
+        if (sessionStillCurrent && atEnd && completed && dir != null &&
+            chunks.isNotEmpty() && timeline.size == chunks.size
+        ) {
             ReaderAudioCache.put(
                 text = currentSnapshot.text,
                 voiceId = currentSnapshot.voiceId,
@@ -479,9 +690,10 @@ class ReaderPlaybackService : MediaSessionService() {
                 chunks = chunks,
                 durations = timeline.durations(),
                 audioDir = dir,
+                providerKey = providerKey,
             )
         }
-        if (atEnd) {
+        if (sessionStillCurrent && atEnd) {
             showStatusNotification(
                 getString(R.string.reading_complete_title),
                 getString(R.string.reading_complete_body),
@@ -490,17 +702,21 @@ class ReaderPlaybackService : MediaSessionService() {
         generationId++
         generation?.cancel()
         generation = null
+        stopPositionTicker()
         player.stop()
         player.clearMediaItems()
         timeline.clear()
         wantsPlayback = false
         pendingPosition = null
-        ReaderState.snapshot.value = currentSnapshot.copy(
-            status = ReadingStatus.IDLE,
-            positionMs = position,
-            characterOffset = if (atEnd) 0 else currentSnapshot.characterOffset,
-        )
-        ReaderState.save(this)
+        if (sessionStillCurrent) {
+            ReaderState.snapshot.value = currentSnapshot.copy(
+                status = ReadingStatus.IDLE,
+                positionMs = position,
+                characterOffset = if (atEnd) 0 else currentSnapshot.characterOffset,
+                positionUpdatedAtNanos = System.nanoTime(),
+            )
+            ReaderState.save(this)
+        }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -535,7 +751,7 @@ class ReaderPlaybackService : MediaSessionService() {
                 .remove(Player.COMMAND_SEEK_TO_NEXT)
                 .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                 .build()
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(commands)
                 .setAvailablePlayerCommands(playerCommands)
                 .setCustomLayout(mediaButtons)
@@ -572,7 +788,9 @@ class ReaderPlaybackService : MediaSessionService() {
         voiceId: String = ReaderState.snapshot.value.voiceId,
     ): MediaMetadata {
         val title = formatTitle(text, getString(R.string.app_name))
-        val voiceLabel = OfflineVoice.option(voiceId).label
+        val voiceLabel = if (usingElevenLabs) {
+            "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(this) ?: "Voz online"}"
+        } else OfflineVoice.option(this, voiceId).label
         return MediaMetadata.Builder()
             .setTitle(title)
             .setDisplayTitle(title)
@@ -617,6 +835,7 @@ class ReaderPlaybackService : MediaSessionService() {
     }
 
     companion object {
+        private const val TAG = "ReaderPlaybackService"
         const val NOTIFICATION_ID = 1101
         const val STATUS_NOTIFICATION_ID = 1102
         const val CHANNEL_ID = "eco-reading-playback"
@@ -633,6 +852,8 @@ class ReaderPlaybackService : MediaSessionService() {
         const val ACTION_STOP = "com.echoreading.STOP"
         const val ACTION_RESET = "com.echoreading.RESET"
         const val ACTION_SPEED = "com.echoreading.SPEED"
+        const val ACTION_SEEK = "com.echoreading.SEEK"
+        const val ACTION_VOICE = "com.echoreading.VOICE"
 
         fun formatTitle(text: String, fallback: String): String {
             val clean = text.replace(Regex("\\s+"), " ").trim()

@@ -4,20 +4,23 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
+def releaseStoreFile = project.findProperty('RELEASE_STORE_FILE') ?: System.getenv('RELEASE_STORE_FILE')
+def releaseStorePassword = project.findProperty('RELEASE_STORE_PASSWORD') ?: System.getenv('RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = project.findProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS')
+def releaseKeyPassword = project.findProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD')
+
 android {
     namespace 'com.echoreading'
     compileSdk {
-        version = release(36) {
-            it.minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {
         applicationId "com.echoreading"
         minSdk 33
-        targetSdk 35
-        versionCode 3
-        versionName "2.0.1"
+        targetSdk 36
+        versionCode 6
+        versionName "2.3.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -26,18 +29,37 @@ android {
         unitTests.returnDefaultValues = true
     }
 
+    signingConfigs {
+        if (releaseStoreFile) {
+            release {
+                if (!releaseStorePassword || !releaseKeyAlias || !releaseKeyPassword) {
+                    throw new GradleException(
+                        "RELEASE_STORE_FILE is set but RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, or RELEASE_KEY_PASSWORD is missing."
+                    )
+                }
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (releaseStoreFile) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
     buildFeatures {
         compose true
@@ -50,20 +72,128 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.activity:activity-compose:1.9.3'
-    implementation 'androidx.navigation:navigation-compose:2.8.4'
-    implementation platform('androidx.compose:compose-bom:2024.10.01')
+    implementation 'androidx.core:core-ktx:1.19.1'
+    implementation 'androidx.activity:activity-compose:1.13.0'
+    implementation 'androidx.navigation:navigation-compose:2.10.2'
+    implementation platform('androidx.compose:compose-bom:2026.09.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.foundation:foundation'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     debugImplementation 'androidx.compose.ui:ui-tooling'
-    implementation 'androidx.media3:media3-exoplayer:1.9.0'
-    implementation 'androidx.media3:media3-session:1.9.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'androidx.media3:media3-exoplayer:1.11.1'
+    implementation 'androidx.media3:media3-session:1.11.1'
+    implementation 'androidx.work:work-runtime-ktx:2.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
+    implementation 'com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
+
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.4.0'
 }
 
+def debugApk = layout.buildDirectory.file('outputs/apk/debug/app-debug.apk')
+
+def bundledVoiceDir = layout.projectDirectory.dir('src/main/assets/vits-piper-pt_PT-tugao-medium')
+def bundledVoiceFile = bundledVoiceDir.file('pt_PT-tugao-medium.onnx')
+def bundledVoiceUrl = 'https://huggingface.co/csukuangfj/vits-piper-pt_PT-tugao-medium/resolve/main/pt_PT-tugao-medium.onnx'
+def bundledVoiceSha256 = '0d922da6f6fd87f981bb05fa8f698a1af6fc5c9366c212cdeb36a0f04c3c056d'
+def bundledVoiceSize = 63_201_425L
+
+def sha256Of = { File file ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    file.withInputStream { input ->
+        def buffer = new byte[64 * 1024]
+        int read
+        while ((read = input.read(buffer)) != -1) {
+            digest.update(buffer, 0, read)
+        }
+    }
+    digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+}
+
+tasks.register('fetchBundledVoice') {
+    group = 'verification'
+    description = 'Fetches the large Tugão voice model into assets (ignored by Git).'
+    doLast {
+        def target = bundledVoiceFile.asFile
+        if (target.isFile() && target.length() == bundledVoiceSize &&
+            sha256Of(target).equalsIgnoreCase(bundledVoiceSha256)) {
+            logger.lifecycle("Bundled voice already present: ${target}")
+            return
+        }
+        target.parentFile.mkdirs()
+        def part = new File(target.parentFile, target.name + '.part')
+        part.delete()
+        logger.lifecycle("Downloading bundled voice to ${target} ...")
+        new URI(bundledVoiceUrl).toURL().withInputStream { input ->
+            part.withOutputStream { output -> output << input }
+        }
+        if (part.length() != bundledVoiceSize) {
+            part.delete()
+            throw new GradleException("Bundled voice has wrong size: ${part.length()} != ${bundledVoiceSize}")
+        }
+        def actual = sha256Of(part)
+        if (!actual.equalsIgnoreCase(bundledVoiceSha256)) {
+            part.delete()
+            throw new GradleException("Bundled voice checksum mismatch: ${actual}")
+        }
+        target.delete()
+        java.nio.file.Files.move(
+            part.toPath(),
+            target.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+        )
+        logger.lifecycle("Bundled voice ready: ${target}")
+    }
+}
+
+tasks.register('verifyBundledVoice') {
+    group = 'verification'
+    description = 'Fails when the large Tugão voice model is absent or corrupt.'
+    doLast {
+        def target = bundledVoiceFile.asFile
+        if (!target.isFile()) {
+            throw new GradleException(
+                "Bundled voice is missing: ${target}\nRun '.\\gradlew fetchBundledVoice' before building a release APK."
+            )
+        }
+        if (target.length() != bundledVoiceSize) {
+            throw new GradleException("Bundled voice has wrong size: ${target.length()} != ${bundledVoiceSize}")
+        }
+        def actual = sha256Of(target)
+        if (!actual.equalsIgnoreCase(bundledVoiceSha256)) {
+            throw new GradleException("Bundled voice checksum mismatch: ${actual}")
+        }
+        logger.lifecycle("Bundled voice verified: ${target}")
+    }
+}
+
+tasks.matching { it.name == 'assembleRelease' }.configureEach {
+    dependsOn tasks.named('verifyBundledVoice')
+}
+
+tasks.register('verifySherpaPackaging') {
+    dependsOn tasks.named('assembleDebug')
+    inputs.file(debugApk)
+    doLast {
+        def apk = debugApk.get().asFile
+        if (!apk.isFile()) throw new GradleException("Debug APK was not generated")
+        def zip = new java.util.zip.ZipFile(apk)
+        try {
+            ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'].each { abi ->
+                if (zip.getEntry("lib/$abi/libsherpa-onnx-jni.so") == null) {
+                    throw new GradleException("Missing Sherpa JNI library for $abi")
+                }
+                if (zip.getEntry("lib/$abi/libonnxruntime.so") == null) {
+                    throw new GradleException("Missing ONNX Runtime library for $abi")
+                }
+            }
+        } finally {
+            zip.close()
+        }
+    }
+}

@@ -4,65 +4,60 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,7 +66,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,7 +77,14 @@ import com.echoreading.reader.WavFiles
 import com.echoreading.voice.CatalogVoice
 import com.echoreading.voice.OfflineVoice
 import com.echoreading.voice.VoiceCatalog
+import com.echoreading.voice.VoiceDownloadManager
+import com.echoreading.voice.VoiceDownloadSource
+import com.echoreading.voice.VoiceDownloadStartResult
+import com.echoreading.voice.VoiceDownloadStatus
+import com.echoreading.voice.catalogVoiceCountryLabel
+import com.echoreading.voice.catalogVoiceGroupLabel
 import com.echoreading.voice.sampleGreetingFor
+import com.echoreading.voice.visibleCatalogVoices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -91,12 +95,12 @@ import java.util.Locale
 
 @OptIn(
     ExperimentalMaterial3Api::class,
-    ExperimentalLayoutApi::class,
     androidx.compose.foundation.ExperimentalFoundationApi::class,
 )
 @Composable
 fun VoiceDiscoveryScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
 
     // Catalog state
@@ -107,12 +111,11 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
     // Filter & search state
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFamily by remember { mutableStateOf<String?>(null) }
+    var selectedFamily by remember { mutableStateOf("pt") }
+    var showLanguageFilter by remember { mutableStateOf(false) }
 
-    // Download state
-    var downloadingKey by remember { mutableStateOf<String?>(null) }
-    var downloadProgress by remember { mutableFloatStateOf(0f) }
-    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    // Download state is app-scoped so leaving this screen does not cancel it.
+    val voiceDownload by VoiceDownloadManager.state.collectAsState()
 
     // Installed cache invalidation tracker
     var installedVersion by remember { mutableIntStateOf(0) }
@@ -152,6 +155,26 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         loadCatalog(forceRefresh = false)
+    }
+
+    LaunchedEffect(voiceDownload.completions) {
+        voiceDownload.completions.forEach { completion ->
+            if (completion.success) {
+                installedVersion++
+                Toast.makeText(
+                    context,
+                    "Voz ${completion.label.replaceFirstChar { it.uppercase() }} transferida com sucesso!",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    "Erro ao transferir voz: ${completion.error ?: "Falha na transferência"}",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            VoiceDownloadManager.acknowledge(completion.requestId)
+        }
     }
 
     fun playSample(voice: CatalogVoice) {
@@ -199,19 +222,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
     // Filtered voices
     val filtered = remember(catalog, searchQuery, selectedFamily) {
-        catalog.filter { voice ->
-            val matchesFamily = selectedFamily == null ||
-                voice.languageFamily.equals(selectedFamily, ignoreCase = true)
-            val q = searchQuery.trim()
-            val matchesSearch = q.isBlank() ||
-                voice.name.contains(q, ignoreCase = true) ||
-                voice.languageEnglish.contains(q, ignoreCase = true) ||
-                voice.languageNative.contains(q, ignoreCase = true) ||
-                voice.languageCode.contains(q, ignoreCase = true) ||
-                voice.countryEnglish.contains(q, ignoreCase = true) ||
-                voice.key.contains(q, ignoreCase = true)
-            matchesFamily && matchesSearch
-        }
+        visibleCatalogVoices(catalog, selectedFamily, searchQuery)
     }
 
     // Available language families
@@ -286,64 +297,50 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
 
-        // Search Bar
-        OutlinedTextField(
+        ElevatedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Pesquisar por nome, idioma ou país…") },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            )
+            languageName = if (selectedFamily == "pt") "Português"
+                else families.firstOrNull { it.first == selectedFamily }?.second.orEmpty(),
+            filterEnabled = families.isNotEmpty(),
+            onClear = { searchQuery = "" },
+            onFilter = { showLanguageFilter = true },
         )
 
-        Spacer(Modifier.height(10.dp))
-
-        // Language Filter Chips
-        if (families.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = selectedFamily == null,
-                        onClick = { selectedFamily = null },
-                        label = { Text("Todos (${catalog.size})") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
+        if (showLanguageFilter) {
+            AlertDialog(
+                onDismissRequest = { showLanguageFilter = false },
+                title = { Text("Selecionar idioma") },
+                text = {
+                    LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(families, key = { it.first }) { (code, name, count) ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedFamily = code
+                                    searchQuery = ""
+                                    showLanguageFilter = false
+                                }.padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (code == "pt") "Português" else name, Modifier.weight(1f))
+                                if (selectedFamily == code) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = "Selecionado",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLanguageFilter = false }) { Text("Fechar") }
                 }
-                items(families, key = { it.first }) { (code, name, count) ->
-                    FilterChip(
-                        selected = selectedFamily == code,
-                        onClick = {
-                            selectedFamily = if (selectedFamily == code) null else code
-                        },
-                        label = { Text("$name ($count)") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-            }
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -449,12 +446,12 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (searchQuery.isNotEmpty() || selectedFamily != null) {
+                        if (searchQuery.isNotEmpty() || selectedFamily != "pt") {
                             Spacer(Modifier.height(6.dp))
                             OutlinedButton(
                                 onClick = {
                                     searchQuery = ""
-                                    selectedFamily = null
+                                    selectedFamily = "pt"
                                 }
                             ) {
                                 Text("Limpar filtros")
@@ -465,13 +462,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
             }
             else -> {
                 val groups = remember(filtered) {
-                    filtered.groupBy { voice ->
-                        if (voice.countryEnglish.isNotEmpty()) {
-                            "${voice.languageEnglish} (${voice.countryEnglish})"
-                        } else {
-                            voice.languageEnglish
-                        }
-                    }
+                    filtered.groupBy(::catalogVoiceGroupLabel)
                 }
 
                 LazyColumn(
@@ -517,53 +508,51 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                             val isInstalled = remember(voice.key, installedVersion) {
                                 isVoiceInstalled(context, voice)
                             }
-                            val isDownloading = downloadingKey == voice.key
+                            val isDownloading = voiceDownload.status == VoiceDownloadStatus.DOWNLOADING &&
+                                voiceDownload.key == voice.key
+                            val queueIndex = voiceDownload.queued.indexOfFirst { it.key == voice.key }
+                            val isQueued = queueIndex >= 0
                             val isPlayingThis = playingVoiceKey == voice.key
 
                             VoiceDiscoveryCard(
                                 voice = voice,
                                 isInstalled = isInstalled,
                                 isDownloading = isDownloading,
-                                canDownload = downloadingKey == null,
-                                progress = if (isDownloading) downloadProgress else 0f,
+                                isQueued = isQueued,
+                                queuePosition = queueIndex + 1,
+                                progress = if (isDownloading) voiceDownload.progress else 0f,
                                 isPlaying = isPlayingThis,
                                 onPlaySample = { playSample(voice) },
                                 onDownload = {
-                                    if (downloadingKey != null) return@VoiceDiscoveryCard
-                                    downloadingKey = voice.key
-                                    downloadProgress = 0f
-                                    downloadJob = scope.launch {
-                                        try {
-                                            OfflineVoice.installFromCatalog(context, voice) { copied, total ->
-                                                if (total > 0) {
-                                                    downloadProgress = copied.toFloat() / total
-                                                }
-                                            }
-                                            installedVersion++
-                                            Toast.makeText(
-                                                context,
-                                                "Voz ${voice.name.replaceFirstChar { it.uppercase() }} transferida com sucesso!",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        } catch (e: Exception) {
-                                            if (e !is CancellationException) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Erro ao transferir voz: ${e.message ?: "Falha na transferência"}",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                        } finally {
-                                            downloadingKey = null
-                                            downloadJob = null
-                                        }
+                                    val result = VoiceDownloadManager.start(
+                                        context = context.applicationContext,
+                                        key = voice.key,
+                                        label = voice.name,
+                                        source = VoiceDownloadSource.CATALOG,
+                                    )
+                                    if (result == VoiceDownloadStartResult.QUEUED) {
+                                        Toast.makeText(
+                                            context,
+                                            resources.getString(R.string.voice_download_added_to_queue),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
                                     }
                                 },
                                 onCancel = {
-                                    downloadJob?.cancel()
-                                    downloadJob = null
-                                    downloadingKey = null
-                                    Toast.makeText(context, "Transferência cancelada", Toast.LENGTH_SHORT).show()
+                                    VoiceDownloadManager.cancelActive()
+                                    Toast.makeText(
+                                        context,
+                                        resources.getString(R.string.voice_download_cancelled),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                                onCancelQueued = {
+                                    VoiceDownloadManager.cancelQueued(voice.key)
+                                    Toast.makeText(
+                                        context,
+                                        resources.getString(R.string.voice_download_removed_from_queue),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                                 }
                             )
                         }
@@ -575,16 +564,66 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
 }
 
 @Composable
+private fun ElevatedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    languageName: String,
+    filterEnabled: Boolean,
+    onClear: () -> Unit,
+    onFilter: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 4.dp,
+    ) {
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Pesquisar vozes", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (value.isNotEmpty()) {
+                        IconButton(onClick = onClear) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
+                        }
+                    }
+                    IconButton(onClick = onFilter, enabled = filterEnabled) {
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtrar idioma. Atual: $languageName",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+            ),
+        )
+    }
+}
+
+@Composable
 private fun VoiceDiscoveryCard(
     voice: CatalogVoice,
     isInstalled: Boolean,
     isDownloading: Boolean,
-    canDownload: Boolean,
+    isQueued: Boolean,
+    queuePosition: Int,
     progress: Float,
     isPlaying: Boolean,
     onPlaySample: () -> Unit,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
+    onCancelQueued: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -622,8 +661,9 @@ private fun VoiceDiscoveryCard(
                         buildString {
                             val native = voice.languageNative.ifEmpty { voice.languageEnglish }
                             append(native)
-                            if (voice.countryEnglish.isNotEmpty()) {
-                                append(" • ${voice.countryEnglish}")
+                            val country = catalogVoiceCountryLabel(voice)
+                            if (country.isNotEmpty()) {
+                                append(" • $country")
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -643,6 +683,48 @@ private fun VoiceDiscoveryCard(
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(20.dp)
                             )
+                        }
+                    }
+                    isQueued -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        stringResource(
+                                            R.string.voice_download_queued_position,
+                                            queuePosition,
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                            IconButton(onClick = onCancelQueued, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(
+                                        R.string.voice_download_remove_queued,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                     isInstalled -> {
@@ -694,7 +776,6 @@ private fun VoiceDiscoveryCard(
                     else -> {
                         FilledTonalButton(
                             onClick = onDownload,
-                            enabled = canDownload,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             modifier = Modifier.height(36.dp)
                         ) {

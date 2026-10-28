@@ -3,13 +3,41 @@ package com.echoreading
 import com.echoreading.voice.CatalogVoice
 import com.echoreading.voice.VoiceCatalog
 import com.echoreading.voice.VoiceOption
+import com.echoreading.voice.catalogVoiceGroupLabel
 import com.echoreading.voice.sampleGreetingFor
+import com.echoreading.voice.visibleCatalogVoices
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VoiceCatalogTest {
+
+    @Test
+    fun discoveryShowsOnlySelectedLanguageAndNamesPortugueseRegions() {
+        val portugal = CatalogVoice(
+            key = "pt_PT-joana-medium", name = "joana", languageCode = "pt_PT",
+            languageFamily = "pt", languageRegion = "PT", languageNative = "Português",
+            languageEnglish = "Portuguese", countryEnglish = "Portugal", quality = "medium",
+            numSpeakers = 1, onnxFilePath = "pt_PT.onnx", onnxSizeBytes = 1,
+            onnxMd5 = "", configFilePath = "pt_PT.onnx.json", configSizeBytes = 1,
+        )
+        val brazil = portugal.copy(
+            key = "pt_BR-edresson-medium", name = "edresson", languageCode = "pt_BR",
+            languageRegion = "BR", countryEnglish = "Brazil",
+        )
+        val english = portugal.copy(
+            key = "en_US-amy-low", name = "amy", languageCode = "en_US",
+            languageFamily = "en", languageRegion = "US", languageEnglish = "English",
+        )
+
+        assertEquals(listOf(portugal, brazil), visibleCatalogVoices(listOf(brazil, english, portugal), "pt", ""))
+        assertEquals(listOf(brazil), visibleCatalogVoices(listOf(brazil, english, portugal), "pt", "edr"))
+        assertEquals(listOf(brazil), visibleCatalogVoices(listOf(brazil, english, portugal), "pt", "Brasil"))
+        assertEquals(listOf(english), visibleCatalogVoices(listOf(brazil, english, portugal), "en", ""))
+        assertEquals("Português (Portugal)", catalogVoiceGroupLabel(portugal))
+        assertEquals("Português (Brasil)", catalogVoiceGroupLabel(brazil))
+    }
 
     @Test
     fun sampleGreetingForLanguageFamilies() {

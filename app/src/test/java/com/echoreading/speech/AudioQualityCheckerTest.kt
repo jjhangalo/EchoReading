@@ -2,7 +2,6 @@ package com.echoreading.speech
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -194,12 +193,12 @@ class AudioQualityCheckerTest {
 
     @Test
     fun testTranscriberStateStateFlowsInitialValuesAndReset() {
-        TranscriberState.reset()
+        SpeechToTextState.reset()
 
-        assertFalse(TranscriberState.isRecording.value)
-        assertEquals(0, TranscriberState.recordingDurationSec.value)
-        assertEquals(0f, TranscriberState.recordingAmplitude.value, 0.001f)
-        assertEquals(TranscriptionStatus.IDLE, TranscriberState.snapshot.value.status)
-        assertNull(TranscriberState.pendingAudioUri.value)
+        assertFalse(SpeechToTextState.isRecording.value)
+        assertEquals(0, SpeechToTextState.recordingDurationSec.value)
+        assertEquals(0f, SpeechToTextState.recordingAmplitude.value, 0.001f)
+        assertEquals(TranscriptionStatus.IDLE, SpeechToTextState.snapshot.value.status)
+        assertNull(SpeechToTextState.pendingAudioUri.value)
     }
 }

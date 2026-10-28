@@ -1,28 +1,42 @@
 # Eco Leitura
 
-Leitor Android pessoal: escreve ou partilha texto, escolhe uma voz local e ouve-o mesmo sem ligação à Internet. Requer Android 13 (API 33) ou superior. Não utiliza contas.
+Leitor Android pessoal: escreve ou partilha texto, escolhe uma voz local e ouve-o mesmo sem ligação à Internet. Requer Android 13 (API 33) ou superior. A leitura offline não utiliza contas nem envia texto para servidores. As vozes ElevenLabs opcionais requerem uma conta e ligação à Internet.
 
 ## Utilização
 
-- A voz **Português (Portugal) · Tugão** está incluída na instalação e funciona logo offline.
+- A voz **Português (Portugal) · Tugão** está incluída nas compilações de release e funciona logo offline. Num checkout limpo do código-fonte o modelo grande não está versionado; execute `.\gradlew.bat fetchBundledVoice` antes de gerar o APK (ver Desenvolvimento).
 - **Português (Brasil) · Edresson** e **English (US) · Amy** podem ser descarregadas no selector de vozes; depois funcionam offline. Cada modelo ocupa cerca de 63 MB. Também é possível ajustar a velocidade.
 - Em campos de texto de outras aplicações, selecciona texto e escolhe **Ler em voz alta**. A opção depende do menu de selecção da aplicação de origem. O menu **Partilhar** com texto é outro ponto de entrada.
 - O painel rápido pode ser fechado enquanto a leitura continua. A notificação disponibiliza reproduzir/pausar, ±10 segundos, parar e repor. No controlo compacto do Android aparecem menos botões.
 - Para usar a voz noutras aplicações que aceitam motores TTS do Android, selecciona **Eco Leitura** nas definições de síntese de voz do dispositivo. A notificação do leitor só controla leituras iniciadas dentro do Eco Leitura.
+- No separador **Transcrever**, descarrega e selecciona um modelo Whisper antes de gravar ou escolher um ficheiro. Estão disponíveis Tiny (~104 MB), Base (~161 MB, recomendado) e Small (~375 MB); podem coexistir no dispositivo e funcionam offline depois da instalação.
+- É possível gravar voz, escolher um ficheiro de áudio ou partilhar áudio para a aplicação. O processamento suporta até 30 minutos, mostra o progresso por blocos e continua com uma notificação quando o ecrã bloqueia ou a aplicação perde foco. Downloads podem ser pausados e retomados.
+
+## Privacidade
+
+Por predefinição, o texto, o histórico e as preferências ficam no dispositivo. As cópias de segurança do Android estão desativadas para este leitor. Se ativar as vozes ElevenLabs opcionais, o texto a sintetizar é enviado para a ElevenLabs através da Internet; sem essa opção, a leitura usa apenas vozes locais.
 
 ## Desenvolvimento
 
-Requer JDK 21 e Android SDK 36.1. Para compilar e correr os testes locais:
+Requer JDK 21 e Android SDK 37. Num checkout limpo, obtenha primeiro o modelo de voz grande (não versionado devido ao tamanho):
 
 ```text
-./gradlew :app:assembleDebug :app:testDebugUnitTest
+.\gradlew.bat fetchBundledVoice
 ```
 
-O APK de desenvolvimento fica em `app/build/outputs/apk/debug/`. O primeiro arranque pode demorar a preparar os recursos de pronúncia no armazenamento interno. Não existe emulador ou dispositivo ligado neste ambiente, pelo que o funcionamento no telefone ainda precisa de ensaio.
+Depois compile e corra os testes locais:
+
+```text
+.\gradlew.bat :app:testDebugUnitTest :app:verifySherpaPackaging
+```
+
+`.\gradlew.bat verifyBundledVoice` falha com uma mensagem clara se o modelo estiver ausente ou corrompido. O download e a verificação são deliberados: não são feitos silenciosamente durante o build.
+
+O APK de desenvolvimento fica em `app/build/outputs/apk/debug/`. O primeiro arranque pode demorar a preparar os recursos de pronúncia no armazenamento interno. Confirme gravação, transcrição de ficheiros e continuidade em segundo plano num dispositivo Android antes da distribuição.
 
 ## Recursos de voz
 
-- Runtime [sherpa-onnx v1.13.8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8), incluindo a API Kotlin e bibliotecas JNI para ARM e x86, em 32 e 64 bits.
+- Runtime [sherpa-onnx v1.13.8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8), coordenada JitPack fixada em `v1.13.8` e verificada no APK com bibliotecas JNI e ONNX Runtime para ARM e x86, em 32 e 64 bits.
 - Voz incluída [vits-piper-pt_PT-tugao-medium](https://k2-fsa.github.io/sherpa/onnx/tts/all/Portuguese/vits-piper-pt_PT-tugao-medium.html).
 - Vozes opcionais [pt_BR-edresson-low](https://huggingface.co/csukuangfj/vits-piper-pt_BR-edresson-low) e [en_US-amy-low](https://huggingface.co/csukuangfj/vits-piper-en_US-amy-low), fixadas por revisão e checksum no código.
 

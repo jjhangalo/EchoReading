@@ -11,6 +11,7 @@ data class CachedReading(
     val durations: List<Long>,
     val audioDir: File,
     val timestamp: Long = System.currentTimeMillis(),
+    val providerKey: String = "offline",
 )
 
 object ReaderAudioCache {
@@ -44,13 +45,15 @@ object ReaderAudioCache {
         voiceId: String,
         speed: Float,
         now: Long = System.currentTimeMillis(),
+        providerKey: String = "offline",
     ): CachedReading? {
         val entry = cached ?: return null
         if (now - entry.timestamp > CACHE_TTL_MS) {
             clear()
             return null
         }
-        if (entry.text != text || entry.voiceId != voiceId || abs(entry.speed - speed) > 0.01f) {
+        if (entry.text != text || entry.voiceId != voiceId || entry.providerKey != providerKey ||
+            abs(entry.speed - speed) > 0.01f) {
             return null
         }
         if (!entry.audioDir.isDirectory) {
@@ -58,7 +61,8 @@ object ReaderAudioCache {
             return null
         }
         for (i in entry.chunks.indices) {
-            val file = File(entry.audioDir, "$i.wav")
+            val extension = if (entry.providerKey.startsWith("elevenlabs:")) "mp3" else "wav"
+            val file = File(entry.audioDir, "$i.$extension")
             if (!file.isFile || file.length() == 0L) {
                 clear()
                 return null
@@ -76,6 +80,7 @@ object ReaderAudioCache {
         durations: List<Long>,
         audioDir: File,
         timestamp: Long = System.currentTimeMillis(),
+        providerKey: String = "offline",
     ) {
         if (chunks.isEmpty() || chunks.size != durations.size) return
         val old = cached
@@ -90,6 +95,7 @@ object ReaderAudioCache {
             durations = durations,
             audioDir = audioDir,
             timestamp = timestamp,
+            providerKey = providerKey,
         )
     }
 

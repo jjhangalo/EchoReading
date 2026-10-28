@@ -39,6 +39,21 @@ class ReaderAudioCacheTest {
     }
 
     @Test
+    fun onlineAudioCacheUsesProviderAndMp3Files() {
+        val dir = File(tempDir, "online").apply { mkdirs() }
+        File(dir, "0.mp3").writeBytes(ByteArray(100))
+        ReaderAudioCache.put(
+            text = "Olá", voiceId = "pt-PT", speed = 1f,
+            chunks = listOf(ReadingChunk("Olá", 0)), durations = listOf(1000L),
+            audioDir = dir, providerKey = "elevenlabs:voice-1",
+        )
+
+        assertNull(ReaderAudioCache.get("Olá", "pt-PT", 1f))
+        assertNull(ReaderAudioCache.get("Olá", "pt-PT", 1f, providerKey = "elevenlabs:voice-2"))
+        assertNotNull(ReaderAudioCache.get("Olá", "pt-PT", 1f, providerKey = "elevenlabs:voice-1"))
+    }
+
+    @Test
     fun returnsCachedReadingWhenExactMatch() {
         val dir = createFakeChunkAudioDir(2)
         val chunks = listOf(ReadingChunk("Primeira frase.", 0), ReadingChunk("Segunda frase.", 16))

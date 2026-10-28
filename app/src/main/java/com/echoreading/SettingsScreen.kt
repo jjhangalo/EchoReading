@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
@@ -61,6 +62,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -69,18 +71,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Tab
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,6 +96,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,11 +106,20 @@ import com.echoreading.reader.ReaderAudioCache
 import com.echoreading.reader.ReaderState
 import com.echoreading.reader.ReadingHistory
 import com.echoreading.reader.WavFiles
+import com.echoreading.ui.component.ElevenLabsSettingsSection
 import com.echoreading.voice.OfflineVoice
+import com.echoreading.voice.ElevenLabsAuth
+import com.echoreading.voice.VoiceDownloadManager
+import com.echoreading.voice.VoiceDownloadSource
+import com.echoreading.voice.VoiceDownloadStartResult
+import com.echoreading.voice.VoiceDownloadStatus
 import com.echoreading.voice.VoiceOption
 import com.echoreading.speech.OfflineSpeech
+import com.echoreading.speech.ModelDownloadSnapshot
+import com.echoreading.speech.ModelDownloadStatus
+import com.echoreading.speech.SpeechModelOption
+import com.echoreading.speech.SpeechToTextState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -145,15 +158,11 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
     val context = LocalContext.current
     val installedCount = OfflineVoice.allVoices(context).count { OfflineVoice.isInstalled(context, it) }
 
-    val voiceBytes = remember {
-        File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    var stats by remember { mutableStateOf(StorageStats()) }
+    LaunchedEffect(context) {
+        stats = loadStorageStats(context)
     }
-    val speechBytes = remember { OfflineSpeech.getModelSizeBytes(context) }
-    val cacheBytes = remember {
-        context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-    }
-    val historyBytes = remember { ReadingHistory.sizeBytes(context) }
-    val totalMb = (voiceBytes + speechBytes + cacheBytes + historyBytes) / (1024f * 1024f)
+    val totalMb = stats.totalBytes / (1024f * 1024f)
     val speechInstalled = remember { OfflineSpeech.isModelInstalled(context) }
 
     Column(
@@ -232,7 +241,7 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
                 )
                 Column {
                     Text(
-                        "Eco Leitura Motor v2.4 (Material 3)",
+                        "Eco Leitura Motor v2.3.0 (Material 3)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -553,16 +562,19 @@ private fun SettingsTheme(onBack: () -> Unit) {
 // ---------------------------------------------------------------------------
 // VIEW 3: VOZ (VOICE MANAGEMENT & AUDITION)
 // ---------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val snapshot by ReaderState.snapshot.collectAsState()
     val scope = rememberCoroutineScope()
+    val elevenLabsRevision by ElevenLabsAuth.revision.collectAsState()
+    val onlineReading = remember(elevenLabsRevision) { ElevenLabsAuth.useForReading(context) }
+    var selectedTab by rememberSaveable { mutableStateOf("leitura") }
+    val scrollState = rememberScrollState()
 
-    var downloadingId by remember { mutableStateOf<String?>(null) }
-    var downloadJob by remember { mutableStateOf<Job?>(null) }
-    var downloadProgress by remember { mutableFloatStateOf(0f) }
-    var downloadCopiedMb by remember { mutableFloatStateOf(0f) }
+    val voiceDownload by VoiceDownloadManager.state.collectAsState()
 
     var playingVoiceId by remember { mutableStateOf<String?>(null) }
     var isDemonstratingActive by remember { mutableStateOf(false) }
@@ -570,13 +582,13 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
 
     var voiceToDelete by remember { mutableStateOf<VoiceOption?>(null) }
 
-    var isSpeechInstalled by remember { mutableStateOf(OfflineSpeech.isModelInstalled(context)) }
-    var speechModelBytes by remember { mutableLongStateOf(OfflineSpeech.getModelSizeBytes(context)) }
-    var isDownloadingSpeech by remember { mutableStateOf(false) }
-    var speechDownloadProgress by remember { mutableFloatStateOf(0f) }
-    var speechDownloadCopiedMb by remember { mutableFloatStateOf(0f) }
-    var speechDownloadJob by remember { mutableStateOf<Job?>(null) }
-    var showDeleteSpeechDialog by remember { mutableStateOf(false) }
+    val speechDownload by SpeechToTextState.download.collectAsState()
+    val selectedSpeechModel by SpeechToTextState.selectedModelId.collectAsState()
+    val speechModelsRevision by SpeechToTextState.modelsRevision.collectAsState()
+    val installedSpeechModels = remember(speechModelsRevision) {
+        OfflineSpeech.installedModels(context).mapTo(mutableSetOf()) { it.id }
+    }
+    var speechModelToDelete by remember { mutableStateOf<SpeechModelOption?>(null) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -585,7 +597,29 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             activePlayer = null
             playingVoiceId = null
             isDemonstratingActive = false
-            speechDownloadJob?.cancel()
+        }
+    }
+
+    LaunchedEffect(voiceDownload.completions) {
+        voiceDownload.completions.forEach { completion ->
+            if (completion.success) {
+                if (completion.key.isNotBlank()) {
+                    ElevenLabsAuth.setUseForReading(context, false)
+                    ReaderState.setVoice(context, completion.key)
+                }
+                Toast.makeText(
+                    context,
+                    "${completion.label} pronta a usar!",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } else {
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.download_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            VoiceDownloadManager.acknowledge(completion.requestId)
         }
     }
 
@@ -638,7 +672,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -666,23 +699,184 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                 )
             }
             Text(
-                "MODELOS DE VOZ",
+                "DEFINIÇÕES DE VOZ",
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
+        PrimaryTabRow(
+            selectedTabIndex = when (selectedTab) {
+                "transcricao" -> 1
+                "elevenlabs" -> 2
+                else -> 0
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+        ) {
+            Tab(
+                selected = selectedTab == "leitura",
+                onClick = {
+                    selectedTab = "leitura"
+                    scope.launch { scrollState.animateScrollTo(0) }
+                },
+                text = { Text("Leitura") },
+            )
+            Tab(
+                selected = selectedTab == "transcricao",
+                onClick = {
+                    selectedTab = "transcricao"
+                    scope.launch { scrollState.animateScrollTo(0) }
+                },
+                text = { Text("Transcrição") },
+            )
+            Tab(
+                selected = selectedTab == "elevenlabs",
+                onClick = {
+                    selectedTab = "elevenlabs"
+                    scope.launch { scrollState.animateScrollTo(0) }
+                },
+                text = { Text("ElevenLabs") },
+            )
+        }
+
+        Column(
+            Modifier.weight(1f).verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+        if (selectedTab == "leitura") {
+
         // -------------------------------------------------------------------
-        // SECTION A: VOZES INSTALADAS (TTS)
+        // Voz em uso e ajustes de leitura
+        // -------------------------------------------------------------------
+        val activeVoice = OfflineVoice.option(context, snapshot.voiceId)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            border = CardDefaults.outlinedCardBorder().copy(
+                brush = androidx.compose.ui.graphics.SolidColor(
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                )
+            )
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("VOZ EM USO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            if (onlineReading) "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(context) ?: "Voz online"}"
+                            else activeVoice.label,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Speed Tuning
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Velocidade de Leitura",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                "${snapshot.speed}x",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+
+                    val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        speeds.forEach { s ->
+                            val selected = snapshot.speed == s
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    ReaderState.setSpeed(context, s)
+                                },
+                                label = {
+                                    Text(
+                                        "${s}x",
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Audio Sample Audition Button
+                if (!onlineReading) Button(
+                    onClick = { playSample(activeVoice, snapshot.speed) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
+                ) {
+                    Icon(
+                        if (isDemonstratingActive) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (isDemonstratingActive) "A reproduzir demonstração…" else "Ouvir Demonstração da Voz",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+                if (onlineReading) Text(
+                    "A velocidade online depende das opções oferecidas pela voz ElevenLabs.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Vozes disponíveis no dispositivo
         // -------------------------------------------------------------------
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
-                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -693,7 +887,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        "VOZES INSTALADAS (TTS)",
+                        "VOZES NO DISPOSITIVO",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
@@ -703,7 +897,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.width(8.dp))
                 Text(
                     "${installedVoices.size} vozes • ${String.format(Locale.US, "%.0f", installedMb)} MB",
                     style = MaterialTheme.typography.labelSmall,
@@ -713,15 +906,15 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             }
 
             installedVoices.forEach { voice ->
-                val isSelected = snapshot.voiceId == voice.id
+                val isSelected = !onlineReading && snapshot.voiceId == voice.id
                 val isPlaying = playingVoiceId == voice.id
 
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = voice.id)
-                            ReaderState.save(context)
+                            ElevenLabsAuth.setUseForReading(context, false)
+                            ReaderState.setVoice(context, voice.id)
                         },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
@@ -819,233 +1012,6 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
             }
         }
 
-        // -------------------------------------------------------------------
-        // SECTION B: DISPONÍVEIS PARA TRANSFERÊNCIA
-        // -------------------------------------------------------------------
-        if (downloadableVoices.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CloudDownload,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            "DISPONÍVEIS PARA TRANSFERÊNCIA",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Nuvem TTS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-
-                downloadableVoices.forEach { voice ->
-                    val isDownloading = downloadingId == voice.id
-                    val sizeMb = voice.fileSize / (1024f * 1024f)
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        ),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(
-                                if (isDownloading) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                            )
-                        )
-                    ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isDownloading) MaterialTheme.colorScheme.secondaryContainer
-                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        if (isDownloading) {
-                                            val infiniteTransition = rememberInfiniteTransition(label = "downloading")
-                                            val rotation by infiniteTransition.animateFloat(
-                                                initialValue = 0f,
-                                                targetValue = 360f,
-                                                animationSpec = infiniteRepeatable(
-                                                    animation = tween(1200, easing = LinearEasing),
-                                                    repeatMode = RepeatMode.Restart
-                                                ),
-                                                label = "rotation"
-                                            )
-                                            Icon(
-                                                Icons.Default.Sync,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .rotate(rotation)
-                                            )
-                                        } else {
-                                            Icon(
-                                                Icons.Default.RecordVoiceOver,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        voice.label,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(Modifier.height(3.dp))
-                                    Text(
-                                        "Neutral · ${String.format(Locale.US, "%.1f", sizeMb)} MB",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (!isDownloading) {
-                                    Button(
-                                        onClick = {
-                                            downloadingId = voice.id
-                                            downloadProgress = 0f
-                                            downloadCopiedMb = 0f
-                                            downloadJob = scope.launch {
-                                                try {
-                                                    OfflineVoice.install(context, voice) { copied, total ->
-                                                        if (total > 0) {
-                                                            downloadProgress = copied.toFloat() / total
-                                                            downloadCopiedMb = copied / (1024f * 1024f)
-                                                        }
-                                                    }
-                                                    ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = voice.id)
-                                                    ReaderState.save(context)
-                                                    Toast.makeText(context, "${voice.label} pronta a usar!", Toast.LENGTH_SHORT).show()
-                                                } catch (e: Exception) {
-                                                    if (e !is kotlinx.coroutines.CancellationException) {
-                                                        Toast.makeText(context, context.getString(R.string.download_failed), Toast.LENGTH_SHORT).show()
-                                                    }
-                                                } finally {
-                                                    downloadingId = null
-                                                    downloadProgress = 0f
-                                                }
-                                            }
-                                        },
-                                        shape = CircleShape,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary
-                                        ),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                            horizontal = 12.dp,
-                                            vertical = 8.dp
-                                        )
-                                    ) {
-                                        Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            "${String.format(Locale.US, "%.0f", sizeMb)} MB",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                                        )
-                                    }
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "${(downloadProgress * 100).toInt()}%",
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        IconButton(
-                                            onClick = {
-                                                downloadJob?.cancel()
-                                                downloadingId = null
-                                                downloadProgress = 0f
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Close,
-                                                contentDescription = "Cancelar",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (isDownloading) {
-                                LinearProgressIndicator(
-                                    progress = { downloadProgress },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(CircleShape),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                                )
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        "A descarregar modelo neural...",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "${String.format(Locale.US, "%.1f", downloadCopiedMb)} MB / ${String.format(Locale.US, "%.1f", sizeMb)} MB",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // "Discover more voices" entry point
         Card(
             modifier = Modifier
@@ -1069,14 +1035,14 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Descobrir Mais Vozes",
+                        "Encontrar novas vozes",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        "Explorar catálogo online · 177 vozes · 53 idiomas",
+                        "Escolher idioma e transferir do catálogo",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1090,22 +1056,10 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         }
 
         // -------------------------------------------------------------------
-        // SECTION C: AJUSTES DA VOZ SELECIONADA
+        // Transferência rápida das vozes sugeridas
         // -------------------------------------------------------------------
-        val activeVoice = OfflineVoice.option(context, snapshot.voiceId)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
-            )
-        ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (downloadableVoices.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1114,114 +1068,261 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     Row(
                         modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            Icons.Default.Tune,
+                            Icons.Default.CloudDownload,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            "Ajustes da Voz (${activeVoice.label.substringAfterLast("·").trim()})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            "TRANSFERÊNCIA RÁPIDA",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            "Ativa",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-
-                // Speed Tuning
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "Velocidade de Leitura",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                "${snapshot.speed}x",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-
-                    val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        speeds.forEach { s ->
-                            val selected = snapshot.speed == s
-                            FilterChip(
-                                selected = selected,
-                                onClick = {
-                                    ReaderState.snapshot.value = ReaderState.snapshot.value.copy(speed = s)
-                                    ReaderState.save(context)
-                                },
-                                label = {
-                                    Text(
-                                        "${s}x",
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            )
-                        }
-                    }
-                }
-
-                // Audio Sample Audition Button
-                Button(
-                    onClick = { playSample(activeVoice, snapshot.speed) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)
-                ) {
-                    Icon(
-                        if (isDemonstratingActive) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
                     Text(
-                        if (isDemonstratingActive) "A reproduzir demonstração…" else "Ouvir Demonstração da Voz",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        "Sugestões",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
+                }
+
+                downloadableVoices.forEach { voice ->
+                    val isDownloading = voiceDownload.status == VoiceDownloadStatus.DOWNLOADING &&
+                        voiceDownload.key == voice.id
+                    val queueIndex = voiceDownload.queued.indexOfFirst { it.key == voice.id }
+                    val isQueued = queueIndex >= 0
+                    val sizeMb = voice.fileSize / (1024f * 1024f)
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(
+                                if (isDownloading || isQueued) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            )
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isDownloading || isQueued) MaterialTheme.colorScheme.secondaryContainer
+                                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (isDownloading) {
+                                            val infiniteTransition = rememberInfiniteTransition(label = "downloading")
+                                            val rotation by infiniteTransition.animateFloat(
+                                                initialValue = 0f,
+                                                targetValue = 360f,
+                                                animationSpec = infiniteRepeatable(
+                                                    animation = tween(1200, easing = LinearEasing),
+                                                    repeatMode = RepeatMode.Restart
+                                                ),
+                                                label = "rotation"
+                                            )
+                                            Icon(
+                                                Icons.Default.Sync,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .rotate(rotation)
+                                            )
+                                        } else if (isQueued) {
+                                            Icon(
+                                                Icons.Default.Schedule,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.RecordVoiceOver,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        voice.label,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        if (isQueued) {
+                                            resources.getString(
+                                                R.string.voice_download_queued_position,
+                                                queueIndex + 1,
+                                            )
+                                        } else {
+                                            "Neutral · ${String.format(Locale.US, "%.1f", sizeMb)} MB"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                when {
+                                    isDownloading -> {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "${(voiceDownload.progress * 100).toInt()}%",
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            IconButton(
+                                                onClick = {
+                                                    VoiceDownloadManager.cancelActive()
+                                                    Toast.makeText(
+                                                        context,
+                                                        resources.getString(R.string.voice_download_cancelled),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = resources.getString(R.string.voice_download_cancel_active),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    isQueued -> {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                resources.getString(R.string.voice_download_queued),
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            IconButton(
+                                                onClick = {
+                                                    VoiceDownloadManager.cancelQueued(voice.id)
+                                                    Toast.makeText(
+                                                        context,
+                                                        resources.getString(R.string.voice_download_removed_from_queue),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = resources.getString(R.string.voice_download_remove_queued),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    else -> {
+                                        Button(
+                                            onClick = {
+                                                val result = VoiceDownloadManager.start(
+                                                    context = context.applicationContext,
+                                                    key = voice.id,
+                                                    label = voice.label,
+                                                    source = VoiceDownloadSource.LOCAL,
+                                                )
+                                                if (result == VoiceDownloadStartResult.QUEUED) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        resources.getString(R.string.voice_download_added_to_queue),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                }
+                                            },
+                                            shape = CircleShape,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                            ),
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                                horizontal = 12.dp,
+                                                vertical = 8.dp
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "${String.format(Locale.US, "%.0f", sizeMb)} MB",
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isDownloading) {
+                                LinearProgressIndicator(
+                                    progress = { voiceDownload.progress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(CircleShape),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "A descarregar modelo neural...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "${String.format(Locale.US, "%.1f", voiceDownload.copiedBytes / (1024f * 1024f))} MB / ${String.format(Locale.US, "%.1f", sizeMb)} MB",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
+        }
+
         }
 
         // Voice Deletion Confirmation Dialog
@@ -1244,8 +1345,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                             }
                             OfflineVoice.invalidateDiscoveryCache()
                             if (snapshot.voiceId == voice.id) {
-                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = "pt-PT")
-                                ReaderState.save(context)
+                                ReaderState.setVoice(context, "pt-PT")
                             }
                             voiceToDelete = null
                             Toast.makeText(context, "Voz eliminada", Toast.LENGTH_SHORT).show()
@@ -1265,273 +1365,45 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         // -------------------------------------------------------------------
         // SECTION D: TRANSCRIÇÃO DE VOZ (STT)
         // -------------------------------------------------------------------
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f, fill = false),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Mic,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        "TRANSCRIÇÃO DE VOZ (STT)",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (isSpeechInstalled) {
-                    Text(
-                        "${String.format(Locale.US, "%.1f", speechModelBytes / (1024f * 1024f))} MB",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-            }
+        if (selectedTab == "elevenlabs") ElevenLabsSettingsSection()
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(
-                        if (isDownloadingSpeech) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                    )
-                )
-            ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isDownloadingSpeech) MaterialTheme.colorScheme.secondaryContainer
-                            else if (isSpeechInstalled) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                if (isDownloadingSpeech) {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "downloading_speech")
-                                    val rotation by infiniteTransition.animateFloat(
-                                        initialValue = 0f,
-                                        targetValue = 360f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(1200, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Restart
-                                        ),
-                                        label = "rotation"
-                                    )
-                                    Icon(
-                                        Icons.Default.Sync,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .rotate(rotation)
-                                    )
-                                } else {
-                                    Icon(
-                                        if (isSpeechInstalled) Icons.Default.CheckCircle else Icons.Default.GraphicEq,
-                                        contentDescription = null,
-                                        tint = if (isSpeechInstalled) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
+        if (selectedTab == "transcricao") SpeechModelManagement(
+            installedIds = installedSpeechModels,
+            selectedId = selectedSpeechModel,
+            download = speechDownload,
+            onDownload = { SpeechToTextState.downloadModel(context, it) },
+            onPause = { SpeechToTextState.pauseDownload(context) },
+            onResume = { SpeechToTextState.resume(context) },
+            onSelect = { SpeechToTextState.selectModel(context, it) },
+            onDelete = { modelId -> speechModelToDelete = OfflineSpeech.option(modelId) },
+        )
 
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.stt_model_whisper),
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                if (isSpeechInstalled) {
-                                    "${stringResource(R.string.stt_model_installed)} · ${String.format(Locale.US, "%.1f", speechModelBytes / (1024f * 1024f))} MB"
-                                } else {
-                                    stringResource(R.string.stt_model_not_installed)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
 
-                        if (!isDownloadingSpeech) {
-                            if (isSpeechInstalled) {
-                                IconButton(
-                                    onClick = { showDeleteSpeechDialog = true },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.DeleteOutline,
-                                        contentDescription = "Eliminar Modelo STT",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            } else {
-                                Button(
-                                    onClick = {
-                                        isDownloadingSpeech = true
-                                        speechDownloadProgress = 0f
-                                        speechDownloadCopiedMb = 0f
-                                        speechDownloadJob = scope.launch {
-                                            try {
-                                                OfflineSpeech.installModel(context) { copied, total ->
-                                                    if (total > 0) {
-                                                        speechDownloadProgress = copied.toFloat() / total
-                                                        speechDownloadCopiedMb = copied / (1024f * 1024f)
-                                                    }
-                                                }
-                                                isSpeechInstalled = OfflineSpeech.isModelInstalled(context)
-                                                speechModelBytes = OfflineSpeech.getModelSizeBytes(context)
-                                                Toast.makeText(context, "Modelo Whisper instalado com sucesso!", Toast.LENGTH_SHORT).show()
-                                            } catch (e: Exception) {
-                                                if (e !is kotlinx.coroutines.CancellationException) {
-                                                    Toast.makeText(context, "Falha ao descarregar modelo: ${e.message}", Toast.LENGTH_SHORT).show()
-                                                }
-                                            } finally {
-                                                isDownloadingSpeech = false
-                                                speechDownloadProgress = 0f
-                                            }
-                                        }
-                                    },
-                                    shape = CircleShape,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                    ),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                        horizontal = 12.dp,
-                                        vertical = 8.dp
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        "150 MB",
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                                    )
-                                }
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "${(speechDownloadProgress * 100).toInt()}%",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                IconButton(
-                                    onClick = {
-                                        speechDownloadJob?.cancel()
-                                        isDownloadingSpeech = false
-                                        speechDownloadProgress = 0f
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Cancelar",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (isDownloadingSpeech) {
-                        LinearProgressIndicator(
-                            progress = { speechDownloadProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(CircleShape),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "A descarregar modelo Whisper...",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "${String.format(Locale.US, "%.1f", speechDownloadCopiedMb)} MB / ~150 MB",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (showDeleteSpeechDialog) {
+        speechModelToDelete?.let { model ->
             AlertDialog(
-                onDismissRequest = { showDeleteSpeechDialog = false },
-                title = { Text("Eliminar Modelo Whisper") },
-                text = {
-                    Text(stringResource(R.string.stt_delete_confirm))
-                },
+                onDismissRequest = { speechModelToDelete = null },
+                title = { Text("Eliminar ${model.label}?") },
+                text = { Text("O modelo pode ser descarregado novamente a qualquer momento.") },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            OfflineSpeech.deleteModel(context)
-                            isSpeechInstalled = OfflineSpeech.isModelInstalled(context)
-                            speechModelBytes = OfflineSpeech.getModelSizeBytes(context)
-                            showDeleteSpeechDialog = false
-                            Toast.makeText(context, "Modelo de transcrição eliminado", Toast.LENGTH_SHORT).show()
-                        }
+                            SpeechToTextState.deleteModel(context, model.id)
+                            speechModelToDelete = null
+                        },
                     ) {
                         Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteSpeechDialog = false }) {
+                    TextButton(onClick = { speechModelToDelete = null }) {
                         Text(stringResource(R.string.cancel))
                     }
-                }
+                },
             )
         }
 
         Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
@@ -1539,29 +1411,166 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
 // VIEW 4: ARMAZENAMENTO E PRIVACIDADE
 // ---------------------------------------------------------------------------
 @Composable
+private fun SpeechModelManagement(
+    installedIds: Set<String>,
+    selectedId: String?,
+    download: ModelDownloadSnapshot,
+    onDownload: (String) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSelect: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                Icons.Default.Mic,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                "TRANSCRIÇÃO DE VOZ (STT)",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
+                ),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        OfflineSpeech.models.forEach { model ->
+            val installed = model.id in installedIds
+            val selected = model.id == selectedId
+            val thisDownload = download.modelId == model.id
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    else MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+                border = CardDefaults.outlinedCardBorder(),
+            ) {
+                Column(
+                    Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            if (installed) Icons.Default.CheckCircle else Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = if (installed) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                model.label + if (model.recommended) " · Recomendado" else "",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                            Text(
+                                if (installed) {
+                                    "Instalado · ${String.format(Locale.US, "%.0f", OfflineSpeech.getModelSizeBytes(context, model.id) / (1024f * 1024f))} MB"
+                                } else {
+                                    "Download ~${String.format(Locale.US, "%.0f", model.downloadBytes / 1_000_000f)} MB"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        when {
+                            installed -> {
+                                Button(
+                                    onClick = { onSelect(model.id) },
+                                    enabled = !selected,
+                                    shape = CircleShape,
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+                                ) {
+                                    Text(if (selected) "Ativo" else "Usar")
+                                }
+                                IconButton(onClick = { onDelete(model.id) }) {
+                                    Icon(
+                                        Icons.Default.DeleteOutline,
+                                        contentDescription = "Eliminar ${model.label}",
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                            thisDownload && download.status == ModelDownloadStatus.DOWNLOADING -> {
+                                IconButton(onClick = onPause) {
+                                    Icon(Icons.Default.Close, contentDescription = "Pausar download")
+                                }
+                            }
+                            thisDownload && download.status in setOf(
+                                ModelDownloadStatus.PAUSED,
+                                ModelDownloadStatus.ERROR,
+                            ) -> {
+                                Button(onClick = onResume, shape = CircleShape) { Text("Retomar") }
+                            }
+                            else -> {
+                                Button(
+                                    onClick = { onDownload(model.id) },
+                                    enabled = download.status != ModelDownloadStatus.DOWNLOADING,
+                                    shape = CircleShape,
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Transferir")
+                                }
+                            }
+                        }
+                    }
+
+                    if (thisDownload && download.status == ModelDownloadStatus.DOWNLOADING) {
+                        LinearProgressIndicator(
+                            progress = { download.progress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                        )
+                        Text(
+                            "${(download.progress * 100).toInt()}% · ${String.format(Locale.US, "%.1f", download.copiedBytes / (1024f * 1024f))} MB",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (thisDownload && download.status == ModelDownloadStatus.ERROR) {
+                        Text(
+                            download.error.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsStorage(onBack: () -> Unit) {
     val context = LocalContext.current
     val snapshot by ReaderState.snapshot.collectAsState()
     val scope = rememberCoroutineScope()
 
-    var voiceBytes by remember {
-        mutableLongStateOf(
-            File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        )
-    }
-    var speechBytes by remember {
-        mutableLongStateOf(OfflineSpeech.getModelSizeBytes(context))
-    }
-    var cacheBytes by remember {
-        mutableLongStateOf(
-            context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        )
-    }
-    var historyBytes by remember {
-        mutableLongStateOf(ReadingHistory.sizeBytes(context))
+    var stats by remember { mutableStateOf(StorageStats()) }
+    LaunchedEffect(context) {
+        stats = loadStorageStats(context)
     }
 
-    val totalBytes = voiceBytes + speechBytes + cacheBytes + historyBytes
+    val voiceBytes = stats.voiceBytes
+    val speechBytes = stats.speechBytes
+    val cacheBytes = stats.cacheBytes
+    val historyBytes = stats.historyBytes
+    val totalBytes = stats.totalBytes
     val totalMb = totalBytes / (1024f * 1024f)
     val voiceMb = voiceBytes / (1024f * 1024f)
     val speechMb = speechBytes / (1024f * 1024f)
@@ -1578,10 +1587,9 @@ private fun SettingsStorage(onBack: () -> Unit) {
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     fun recalculateSizes() {
-        voiceBytes = File(context.noBackupFilesDir, "voices").walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        speechBytes = OfflineSpeech.getModelSizeBytes(context)
-        cacheBytes = context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        historyBytes = ReadingHistory.sizeBytes(context)
+        scope.launch {
+            stats = loadStorageStats(context)
+        }
     }
 
     Column(
@@ -1995,8 +2003,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             }
                             OfflineVoice.invalidateDiscoveryCache()
                             if (snapshot.voiceId != "pt-PT") {
-                                ReaderState.snapshot.value = ReaderState.snapshot.value.copy(voiceId = "pt-PT")
-                                ReaderState.save(context)
+                                ReaderState.setVoice(context, "pt-PT")
                             }
                             recalculateSizes()
                             showClearVoicesDialog = false
@@ -2053,7 +2060,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            OfflineSpeech.deleteModel(context)
+                            SpeechToTextState.deleteAllModels(context)
                             recalculateSizes()
                             showClearSpeechDialog = false
                             Toast.makeText(context, "Modelo de transcrição eliminado", Toast.LENGTH_SHORT).show()
