@@ -359,7 +359,10 @@ fun ReaderHome() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            SoundWave(isPlaying = snapshot.status == ReadingStatus.PLAYING)
+                            SoundWave(
+                                isPlaying = snapshot.status == ReadingStatus.PLAYING,
+                                isPreparing = snapshot.status == ReadingStatus.PREPARING,
+                            )
 
                             Surface(
                                 shape = CircleShape,

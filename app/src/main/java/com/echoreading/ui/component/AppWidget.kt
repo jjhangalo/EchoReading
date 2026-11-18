@@ -116,7 +116,10 @@ fun QuickReaderPopupWidget(
                         style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = colorScheme.onSurface
                     )
-                    SoundWave(isPlaying = snapshot.status == ReadingStatus.PLAYING)
+                    SoundWave(
+                        isPlaying = snapshot.status == ReadingStatus.PLAYING,
+                        isPreparing = snapshot.status == ReadingStatus.PREPARING,
+                    )
                 }
 
                 Surface(

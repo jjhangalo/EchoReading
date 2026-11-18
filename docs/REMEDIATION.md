@@ -718,12 +718,40 @@ architecture unless a task explicitly says otherwise.
   entrance is the approximation. The close action has no exit animation because
   the dialog window is disposed immediately.
 
+### R21. Motion graphics: reactive sound wave
+
+- Status: `[x]` (implementation, JVM verification, and lint complete; visual
+  check on a device is still pending)
+- Files: `app/src/main/java/com/echoreading/ui/component/Animated.kt`,
+  `app/src/main/java/com/echoreading/ui/screen/HomeScreen.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppWidget.kt`,
+  `docs/REMEDIATION.md`
+- Problem: the sound-wave pill only moved while audio was playing; during
+  PREPARING it was visually identical to idle/paused, so a multi-second
+  synthesis wait looked frozen. Reduced-motion users still got an infinite
+  wave, and the idle state kept the infinite transition running.
+- Change: `SoundWave` gained `isPreparing`. While preparing, the bars rest and
+  the pill breathes slowly (alpha 0.5..1, 1.1 s); while playing, the existing
+  wave runs; otherwise the bars are static. Both the wave and the breathing
+  respect `rememberReducedMotion()`. The transfer chip needed no change: its
+  determinate Material 3 progress indicators already animate progress updates,
+  and the modal sheet is animated by Material 3.
+- Acceptance: a preparing session shows visible motion distinct from playing
+  and idle; reduced-motion users see a static pill; no behavioural change.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors.
+  No device visual check was run.
+- Limitation: press-scale micro-interactions on the transport buttons were
+  skipped; the buttons already give ripple feedback, and scaling every
+  `Surface.clickable` call site was not worth the diff for the perceived gain.
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R21 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (no new test needed: transitions are declarative and covered by the existing navigation smoke suite on a device) | R20 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors; new `PlayPauseMorphTest` 4/4 and `MarkdownTextTest` chunk-range cases 3/3 | R19 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 571 tests, 0 failures, 0 errors, 1 skipped (33 suites; `OnnxMetadataTest.extractMetadataFromConfig` is conditional on the provisioned TTS config); lint 0 errors, 94 warnings, 1 hint | R18 |

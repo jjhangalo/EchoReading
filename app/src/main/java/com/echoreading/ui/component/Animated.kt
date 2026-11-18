@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -117,7 +118,9 @@ internal fun playPauseMorphQuads(pauseFraction: Float): Pair<FloatArray, FloatAr
 fun SoundWave(
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
+    isPreparing: Boolean = false,
 ) {
+    val reducedMotion = rememberReducedMotion()
     val transition = rememberInfiniteTransition(label = "stitch_wave")
     val h1 by transition.animateFloat(
         6f,
@@ -149,11 +152,23 @@ fun SoundWave(
         infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "w5"
     )
+    // While the reader prepares audio the bars stay at rest and the whole pill
+    // breathes slowly, so "working" is visible without a spinner.
+    val breathe by transition.animateFloat(
+        0.5f,
+        1f,
+        infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "w_breathe"
+    )
+    val waveActive = isPlaying && !reducedMotion
+    val preparingPulse = isPreparing && !reducedMotion
 
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier
+        modifier = modifier.graphicsLayer {
+            alpha = if (preparingPulse) breathe else 1f
+        },
     ) {
         Row(
             Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -163,13 +178,13 @@ fun SoundWave(
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(if (isPlaying) h1.dp else 6.dp)
+                    .height(if (waveActive) h1.dp else 6.dp)
                     .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
             )
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(if (isPlaying) h2.dp else 10.dp)
+                    .height(if (waveActive) h2.dp else 10.dp)
                     .background(
                         MaterialTheme.colorScheme.secondary,
                         androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
@@ -178,7 +193,7 @@ fun SoundWave(
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(if (isPlaying) h3.dp else 5.dp)
+                    .height(if (waveActive) h3.dp else 5.dp)
                     .background(
                         MaterialTheme.colorScheme.primary,
                         androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
@@ -187,7 +202,7 @@ fun SoundWave(
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(if (isPlaying) h4.dp else 8.dp)
+                    .height(if (waveActive) h4.dp else 8.dp)
                     .background(
                         MaterialTheme.colorScheme.secondary,
                         androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
@@ -196,7 +211,7 @@ fun SoundWave(
             Box(
                 Modifier
                     .width(3.dp)
-                    .height(if (isPlaying) h5.dp else 6.dp)
+                    .height(if (waveActive) h5.dp else 6.dp)
                     .background(
                         MaterialTheme.colorScheme.primary,
                         androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
