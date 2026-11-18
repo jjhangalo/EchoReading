@@ -41,6 +41,29 @@ data class MarkdownDocument(
         return low
     }
 
+    /**
+     * Visual (displayed) range of the chunk that starts at [characterOffset].
+     *
+     * The playback service publishes each chunk's original-coordinate start;
+     * the UI re-runs the same deterministic [readingChunks] split, so the next
+     * chunk start (or the end of the source) is the current chunk's end.
+     * Trailing whitespace is trimmed and the range is empty when nothing maps.
+     */
+    fun chunkVisualRange(chunks: List<ReadingChunk>, characterOffset: Int): IntRange? {
+        if (chunks.isEmpty() || visualText.isEmpty()) return null
+        var index = chunks.indexOfLast { it.start <= characterOffset }
+        if (index < 0) index = 0
+        val startOriginal = chunks[index].start
+        var endOriginal = chunks.getOrNull(index + 1)?.start ?: sourceText.length
+        while (endOriginal > startOriginal && sourceText[endOriginal - 1].isWhitespace()) {
+            endOriginal--
+        }
+        if (endOriginal <= startOriginal) return null
+        val start = originalToVisual(startOriginal)
+        val end = originalToVisual(endOriginal).coerceAtLeast(start)
+        return if (end > start) start until end else null
+    }
+
     fun visualToOriginal(offset: Int): Int {
         if (!isMarkdown) return offset.coerceIn(0, sourceText.length)
         return visualOffsets.getOrElse(offset.coerceAtLeast(0)) { sourceText.length }

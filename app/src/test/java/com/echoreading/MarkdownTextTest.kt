@@ -3,8 +3,10 @@ package com.echoreading
 import com.echoreading.reader.MarkdownBlockKind
 import com.echoreading.reader.MarkdownMark
 import com.echoreading.reader.MarkdownText
+import com.echoreading.reader.ReadingChunk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -168,5 +170,50 @@ class MarkdownTextTest {
                 MarkdownMark.CODE, MarkdownMark.LINK),
             document.visualSpans.map { it.mark }.toSet(),
         )
+    }
+
+    @Test
+    fun chunkVisualRangeCoversTheSpokenChunkAndTrimsWhitespace() {
+        val source = "Hello world. Bye.\n\n"
+        val document = MarkdownText.parse(source)
+        val chunks = document.readingChunks()
+
+        assertEquals("Hello world. Bye.", document.visualText.substring(
+            document.chunkVisualRange(chunks, 0)!!
+        ))
+    }
+
+    @Test
+    fun chunkVisualRangeFollowsChunkStartsAndMapsMarkdownOffsets() {
+        val source = "# Título\n" + "**Palavra** e mais texto. ".repeat(5)
+        val document = MarkdownText.parse(source)
+        val chunks = document.readingChunks(40)
+        assertTrue(chunks.size > 1)
+
+        chunks.forEach { chunk ->
+            val range = document.chunkVisualRange(chunks, chunk.start)!!
+            val highlighted = document.visualText.substring(range)
+            assertTrue(highlighted.isNotBlank())
+            assertFalse(highlighted.contains("**"))
+            assertFalse(highlighted.contains('#'))
+        }
+        // Adjacent chunks never overlap in visual space.
+        chunks.zipWithNext().forEach { (first, second) ->
+            val firstEnd = document.chunkVisualRange(chunks, first.start)!!.last + 1
+            val secondStart = document.chunkVisualRange(chunks, second.start)!!.first
+            assertTrue(firstEnd <= secondStart)
+        }
+    }
+
+    @Test
+    fun chunkVisualRangeReturnsNullForEmptyOrUnmappableInput() {
+        val empty = MarkdownText.parse("")
+        assertNull(empty.chunkVisualRange(empty.readingChunks(), 0))
+        assertNull(empty.chunkVisualRange(listOf(), 0))
+
+        // Stale chunk offsets from a previous, longer text must not produce a
+        // range in the current document.
+        val document = MarkdownText.parse("Texto")
+        assertNull(document.chunkVisualRange(listOf(ReadingChunk("x", 999)), 999))
     }
 }

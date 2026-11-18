@@ -641,12 +641,60 @@ architecture unless a task explicitly says otherwise.
   (downloading the 671 MB model, transcribing Portuguese audio, and confirming
   punctuation/capitalization quality and RAM headroom).
 
+### R19. Motion graphics: transport morph and karaoke-style reading highlight
+
+- Status: `[x]` (implementation, JVM verification, and lint complete; visual
+  check on a device is still pending)
+- Files: `app/src/main/java/com/echoreading/ui/component/Animated.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppTextCard.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppWidget.kt`,
+  `app/src/main/java/com/echoreading/ui/screen/HomeScreen.kt`,
+  `app/src/main/java/com/echoreading/reader/MarkdownText.kt`,
+  `app/src/test/java/com/echoreading/ui/component/PlayPauseMorphTest.kt` (new),
+  `app/src/test/java/com/echoreading/MarkdownTextTest.kt`, `docs/REMEDIATION.md`
+- Problem: the interface had almost no motion. Transport changes snapped
+  between play/pause icons and the reading status label; during playback the
+  text gave no visual indication of which spoken chunk was active beyond the
+  scroll-follow position.
+- Change: added `rememberReducedMotion()` (reads the system animator duration
+  scale, so the accessibility "Remove animations" toggle disables the new
+  motion) and `PlayPauseIcon`, a Compose-native morph between the play triangle
+  and the pause bars (two quads interpolated per corner, no new dependency).
+  The Home and Quick Read transport buttons use it and crossfade to the
+  preparing spinner. The reading status label now changes with
+  `AnimatedContent` (fade + short vertical slide) and the status dot animates
+  its color. During PLAYING/PAUSED the reader text highlights the current
+  spoken chunk with a wash of `primary @ 16%`, spring-animated between chunks
+  (start and end corners animate together), mirroring the existing
+  scroll-follow. The highlight range is computed in the UI by re-running the
+  same deterministic `MarkdownDocument.readingChunks()` split the service uses,
+  mapping the chunk start and the next chunk start into visual coordinates
+  (`MarkdownDocument.chunkVisualRange`), so no service/snapshot contract
+  changed. Trailing whitespace is trimmed; empty and stale ranges return null.
+- Acceptance: play/pause and status changes animate instead of snapping; the
+  active spoken chunk is visibly highlighted during playback and remains
+  visible when paused; with "Remove animations" enabled every new animation
+  snaps; no playback/service behaviour changes.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors.
+  `PlayPauseMorphTest` covers both end shapes, the mid-morph interpolation and
+  fraction clamping (4/4). `MarkdownTextTest` gained three `chunkVisualRange`
+  cases covering plain text, markdown offset mapping and non-overlapping
+  adjacent ranges, plus empty/stale input (3/3). Visual smoothness, TalkBack
+  behaviour, and the reduced-motion toggle were not exercised on a device yet.
+- Limitation: the highlight is chunk-level, not word-level. The service
+  publishes a chunk start every ~500 ms, not an intra-chunk character position,
+  so a word-accurate karaoke fill would require a new snapshot field (local
+  chunk position) and is deferred. The spring relayouts the text per frame for
+  the short chunk transition only, not continuously.
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors; new `PlayPauseMorphTest` 4/4 and `MarkdownTextTest` chunk-range cases 3/3 | R19 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 571 tests, 0 failures, 0 errors, 1 skipped (33 suites; `OnnxMetadataTest.extractMetadataFromConfig` is conditional on the provisioned TTS config); lint 0 errors, 94 warnings, 1 hint | R18 |
 | 2026-11-18 | Physical 25028RN03A: `adb shell` RAM query | `ro.config.low_ram=true`, `MemTotal` 2,855,284 kB (~2.7 GiB); by the shipped heuristic this device gets Tiny; user reported the app working as expected (limited manual test) | R18 |
 | 2026-10-22 | `.\gradlew.bat :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 567 tests, 0 failures, 0 errors, 1 skipped (33 suites); lint 0 errors, 94 warnings, 1 hint | R17 |

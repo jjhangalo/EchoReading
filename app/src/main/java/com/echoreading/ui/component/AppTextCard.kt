@@ -1,5 +1,8 @@
 package com.echoreading.ui.component
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +53,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.echoreading.R
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -104,6 +109,7 @@ fun AppTextCard(
     expandable: Boolean = false,
     readOnlyText: AnnotatedString? = null,
     followOffset: Int? = null,
+    highlightRange: IntRange? = null,
     headerActions: (@Composable RowScope.() -> Unit)? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
@@ -213,6 +219,7 @@ fun AppTextCard(
                             placeholder = placeholder,
                             textStyle = textStyle,
                             followOffset = followOffset,
+                            highlightRange = highlightRange,
                             minHeight = fieldHeight,
                             maxHeight = effectiveMaxHeight,
                             modifier = Modifier.fillMaxWidth(),
@@ -270,6 +277,7 @@ fun AppTextCard(
             textStyle = textStyle,
             readOnlyText = readOnlyText,
             followOffset = followOffset,
+            highlightRange = highlightRange,
             headerActions = headerActions,
             footer = footer,
             onDismiss = { expanded = false },
@@ -324,6 +332,7 @@ private fun ReadOnlyFollowText(
     minHeight: Dp = 0.dp,
     maxHeight: Dp = Dp.Unspecified,
     fillHeight: Boolean = false,
+    highlightRange: IntRange? = null,
 ) {
     val scrollState = rememberScrollState()
     var viewportHeight by remember { mutableIntStateOf(0) }
@@ -334,6 +343,57 @@ private fun ReadOnlyFollowText(
         Modifier.fillMaxSize()
     } else {
         Modifier.heightIn(min = minHeight, max = maxHeight)
+    }
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    val reducedMotion = rememberReducedMotion()
+    val highlightStart = remember { Animatable(0f) }
+    val highlightEnd = remember { Animatable(0f) }
+    var hadHighlight by remember { mutableStateOf(false) }
+
+    // Springs the highlight from the previous chunk to the current one so a
+    // new spoken sentence sweeps in instead of appearing abruptly. The
+    // per-frame relayout is bounded to this animation and reuses the frame
+    // clock, like the playback progress bar.
+    LaunchedEffect(highlightRange) {
+        val range = highlightRange
+        if (range == null) {
+            hadHighlight = false
+            return@LaunchedEffect
+        }
+        val targetStart = range.first.toFloat()
+        val targetEnd = (range.last + 1).toFloat()
+        if (!hadHighlight || reducedMotion) {
+            highlightStart.snapTo(targetStart)
+            highlightEnd.snapTo(targetEnd)
+        } else {
+            launch {
+                highlightStart.animateTo(
+                    targetStart,
+                    spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                )
+            }
+            launch {
+                highlightEnd.animateTo(
+                    targetEnd,
+                    spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+                )
+            }
+        }
+        hadHighlight = true
+    }
+
+    val styledText = if (highlightRange == null || text.isEmpty()) {
+        text
+    } else {
+        val start = highlightStart.value.roundToInt().coerceIn(0, text.length)
+        val end = highlightEnd.value.roundToInt().coerceIn(start, text.length)
+        if (end <= start) {
+            text
+        } else {
+            AnnotatedString.Builder(text).apply {
+                addStyle(SpanStyle(background = highlightColor), start, end)
+            }.toAnnotatedString()
+        }
     }
 
     Box(
@@ -348,7 +408,7 @@ private fun ReadOnlyFollowText(
         ) {
             SelectionContainer {
                 Text(
-                    text = text.takeIf { it.isNotEmpty() } ?: AnnotatedString(placeholder),
+                    text = styledText.takeIf { styledText.isNotEmpty() } ?: AnnotatedString(placeholder),
                     style = textStyle,
                     color = if (text.isEmpty()) {
                         MaterialTheme.colorScheme.outline
@@ -396,6 +456,7 @@ private fun ExpandedTextDialog(
     textStyle: TextStyle,
     readOnlyText: AnnotatedString?,
     followOffset: Int?,
+    highlightRange: IntRange?,
     headerActions: (@Composable RowScope.() -> Unit)?,
     footer: (@Composable ColumnScope.() -> Unit)?,
     onDismiss: () -> Unit,
@@ -476,6 +537,7 @@ private fun ExpandedTextDialog(
                             placeholder = placeholder,
                             textStyle = textStyle,
                             followOffset = followOffset,
+                            highlightRange = highlightRange,
                             modifier = Modifier.fillMaxSize(),
                             fillHeight = true,
                         )

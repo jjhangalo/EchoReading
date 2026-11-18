@@ -151,6 +151,17 @@ fun ReaderHome() {
     val playbackFollowOffset = remember(markdown, snapshot.characterOffset, editable) {
         if (editable) null else markdown.originalToVisual(snapshot.characterOffset)
     }
+    // Karaoke highlight: while a session is live, the chunk that starts at the
+    // published offset is highlighted in the read-only text. Pause keeps the
+    // highlight so the reader can see where they stopped.
+    val readingChunks = remember(markdown) { markdown.readingChunks() }
+    val spokenHighlightRange = remember(readingChunks, snapshot.characterOffset, snapshot.status) {
+        if (snapshot.status == ReadingStatus.PLAYING || snapshot.status == ReadingStatus.PAUSED) {
+            markdown.chunkVisualRange(readingChunks, snapshot.characterOffset)
+        } else {
+            null
+        }
+    }
     val words = remember(markdown.spokenText) {
         if (markdown.spokenText.isBlank()) {
             0
@@ -198,6 +209,7 @@ fun ReaderHome() {
                 expandable = true,
                 readOnlyText = playbackText,
                 followOffset = playbackFollowOffset,
+                highlightRange = spokenHighlightRange,
                 headerActions = {
                     AppTextAction(
                         icon = Icons.Default.ContentPaste,
