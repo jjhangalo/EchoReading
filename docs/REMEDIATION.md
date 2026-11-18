@@ -643,8 +643,9 @@ architecture unless a task explicitly says otherwise.
 
 ### R19. Motion graphics: transport morph and karaoke-style reading highlight
 
-- Status: `[x]` (implementation, JVM verification, and lint complete; visual
-  check on a device is still pending)
+- Status: `[x]` (implementation, JVM verification, and lint complete; device
+  check partial — the preparing spinner and transport rendered, the karaoke
+  highlight and the play/pause morph were not captured on screen)
 - Files: `app/src/main/java/com/echoreading/ui/component/Animated.kt`,
   `app/src/main/java/com/echoreading/ui/component/AppTextCard.kt`,
   `app/src/main/java/com/echoreading/ui/component/AppWidget.kt`,
@@ -690,8 +691,8 @@ architecture unless a task explicitly says otherwise.
 
 ### R20. Motion graphics: tab transitions and expanded-card entrance
 
-- Status: `[x]` (implementation, JVM verification, and lint complete; visual
-  check on a device is still pending)
+- Status: `[x]` (implementation, JVM verification, and lint complete; on-device
+  transition walkthrough still pending)
 - Files: `app/src/main/java/com/echoreading/ui/EcoApp.kt`,
   `app/src/main/java/com/echoreading/ui/component/AppTextCard.kt`,
   `docs/REMEDIATION.md`
@@ -720,8 +721,8 @@ architecture unless a task explicitly says otherwise.
 
 ### R21. Motion graphics: reactive sound wave
 
-- Status: `[x]` (implementation, JVM verification, and lint complete; visual
-  check on a device is still pending)
+- Status: `[x]` (implementation, JVM verification, and lint complete; on-device
+  breathing-wave walkthrough still pending)
 - Files: `app/src/main/java/com/echoreading/ui/component/Animated.kt`,
   `app/src/main/java/com/echoreading/ui/screen/HomeScreen.kt`,
   `app/src/main/java/com/echoreading/ui/component/AppWidget.kt`,
@@ -740,7 +741,10 @@ architecture unless a task explicitly says otherwise.
   and idle; reduced-motion users see a static pill; no behavioural change.
 - Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
   578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors.
-  No device visual check was run.
+  Device: the debug APK installed and launched on the physical 25028RN03A; the
+  reader card, the `PRONTO PARA LER` status label and the transport row
+  rendered, and after the play tap the FAB Crossfaded to the preparing spinner.
+  No further animation frames were captured — see the R23 device note.
 - Limitation: press-scale micro-interactions on the transport buttons were
   skipped; the buttons already give ripple feedback, and scaling every
   `Surface.clickable` call site was not worth the diff for the perceived gain.
@@ -809,6 +813,15 @@ architecture unless a task explicitly says otherwise.
   578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors. A
   scripted parity check confirmed 279 keys in both files, no missing or extra
   keys, and identical format specifiers per key.
+- Device: the debug APK installed and launched on the physical 25028RN03A
+  (`adb install -r`, `am start`). The reader screen rendered with the extracted
+  resources — `ECHO READING`/`Leitura` header, `Texto de Leitura`, `13 palavras
+  · 67 caracteres`, `~5 seg`, `Voz e ritmo`, `No dispositivo · offline`,
+  `Velocidade de leitura`, `PRONTO PARA LER`, `Reprodutor de Voz` — with no
+  missing-resource crash and no visible copy change. The English locale and the
+  TalkBack walkthrough were not exercised: the session lost app focus and the
+  remaining taps landed in the user's own apps, so device interaction was
+  stopped and the app force-stopped.
 - Limitation: error strings produced inside services and repositories
   (`ReaderPlaybackService`, `SpeechProcessingService`, `ElevenLabsMcp`,
   `OfflineSpeech`, `AudioDecoder`) are still hardcoded Portuguese. They surface
@@ -833,6 +846,7 @@ Add newest entries at the top. Include command, result, and which item it covers
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `adb install -r app-debug.apk` + `am start` on 25028RN03A, screenshots of the reader card and transport | App launched, extracted Portuguese copy rendered, play tap Crossfaded the FAB to the preparing spinner; no FATAL EXCEPTION; animation/locale walkthrough interrupted (device is a personal phone) and the app was force-stopped | R19-R23 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (4 `LocalContextGetResourceValueCall` errors found and fixed) | R23 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R22 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R21 |
