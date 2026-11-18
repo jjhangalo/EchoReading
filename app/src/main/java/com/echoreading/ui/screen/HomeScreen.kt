@@ -63,6 +63,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
@@ -259,9 +263,16 @@ fun ReaderHome() {
                             )
                             Text(
                                 if (estSeconds < 60) {
-                                    "~$estSeconds seg"
+                                    stringResource(
+                                        R.string.estimated_duration_seconds,
+                                        estSeconds,
+                                    )
                                 } else {
-                                    "~${estSeconds / 60}m ${estSeconds % 60}s"
+                                    stringResource(
+                                        R.string.estimated_duration_minutes,
+                                        estSeconds / 60,
+                                        estSeconds % 60,
+                                    )
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -317,16 +328,21 @@ fun ReaderHome() {
                                     .background(statusDotColor, CircleShape)
                             )
                             Column {
-                                val readingLabel = when (snapshot.status) {
-                                    ReadingStatus.PREPARING -> "A PREPARAR O ÁUDIO"
-                                    ReadingStatus.PLAYING -> "EM LEITURA"
-                                    ReadingStatus.PAUSED -> "LEITURA EM PAUSA"
-                                    ReadingStatus.ERROR -> "ERRO NA LEITURA"
-                                    ReadingStatus.IDLE -> "PRONTO PARA LER"
-                                }
+                                val readingLabel = stringResource(
+                                    when (snapshot.status) {
+                                        ReadingStatus.PREPARING -> R.string.reader_status_preparing
+                                        ReadingStatus.PLAYING -> R.string.reader_status_playing
+                                        ReadingStatus.PAUSED -> R.string.reader_status_paused
+                                        ReadingStatus.ERROR -> R.string.reader_status_error
+                                        ReadingStatus.IDLE -> R.string.reader_status_idle
+                                    }
+                                )
                                 val reducedMotion = rememberReducedMotion()
                                 AnimatedContent(
                                     targetState = readingLabel,
+                                    modifier = Modifier.semantics {
+                                        liveRegion = LiveRegionMode.Polite
+                                    },
                                     transitionSpec = {
                                         if (reducedMotion) {
                                             EnterTransition.None togetherWith ExitTransition.None
@@ -348,7 +364,7 @@ fun ReaderHome() {
                                     )
                                 }
                                 Text(
-                                    "Reprodutor de Voz",
+                                    stringResource(R.string.reproducer_title),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -380,7 +396,7 @@ fun ReaderHome() {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.Default.Replay,
-                                        contentDescription = "Reiniciar leitura",
+                                        contentDescription = stringResource(R.string.reader_restart),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -443,7 +459,7 @@ fun ReaderHome() {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.Default.Stop,
-                                        contentDescription = "Parar",
+                                        contentDescription = stringResource(R.string.stop_reading),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(22.dp)
                                     )
@@ -466,7 +482,7 @@ fun ReaderHome() {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.Default.Replay10,
-                                        contentDescription = "-10s",
+                                        contentDescription = stringResource(R.string.rewind_ten),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(24.dp)
                                     )
@@ -478,6 +494,22 @@ fun ReaderHome() {
                             val isPreparing = snapshot.status == ReadingStatus.PREPARING
                             val canPlay = snapshot.status != ReadingStatus.PREPARING && (isPlaying ||
                                 snapshot.status == ReadingStatus.PAUSED || markdown.spokenText.isNotBlank())
+                            val playbackStateDescription = stringResource(
+                                when (snapshot.status) {
+                                    ReadingStatus.PREPARING -> R.string.reader_status_preparing
+                                    ReadingStatus.PLAYING -> R.string.reader_status_playing
+                                    ReadingStatus.PAUSED -> R.string.reader_status_paused
+                                    ReadingStatus.ERROR -> R.string.reader_status_error
+                                    ReadingStatus.IDLE -> R.string.reader_status_idle
+                                }
+                            )
+                            val transportDescription = stringResource(
+                                when {
+                                    isPlaying -> R.string.pause_reading
+                                    snapshot.status == ReadingStatus.PAUSED -> R.string.resume_reading
+                                    else -> R.string.start_reading
+                                }
+                            )
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primary,
@@ -516,6 +548,9 @@ fun ReaderHome() {
                                             )
                                         }
                                     }
+                                    .semantics {
+                                        stateDescription = playbackStateDescription
+                                    }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Crossfade(isPreparing, label = "play_preparing") { preparing ->
@@ -529,7 +564,7 @@ fun ReaderHome() {
                                             PlayPauseIcon(
                                                 playing = isPlaying,
                                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                                contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                                                contentDescription = transportDescription,
                                                 modifier = Modifier.size(36.dp),
                                             )
                                         }
@@ -553,7 +588,7 @@ fun ReaderHome() {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.Default.Forward10,
-                                        contentDescription = "+10s",
+                                        contentDescription = stringResource(R.string.forward_ten),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(24.dp)
                                     )
@@ -579,7 +614,7 @@ fun ReaderHome() {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.VolumeUp,
-                                        contentDescription = "Volume",
+                                        contentDescription = stringResource(R.string.reader_volume),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(22.dp)
                                     )

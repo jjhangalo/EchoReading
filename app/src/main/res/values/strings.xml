@@ -115,6 +115,16 @@
     <string name="privacy_body">Por predefinição, textos, histórico e preferências ficam no armazenamento local do dispositivo e não são enviados para servidores externos. As cópias de segurança do Android estão desativadas. Se ativar as vozes ElevenLabs opcionais, o texto a sintetizar é enviado para a ElevenLabs através da Internet.</string>
     <string name="cancel">Cancelar</string>
     <string name="engine_version_info">Eco Leitura Motor v2.3.0 — Sintetizador neural ativo offline com privacidade protegida</string>
+    <!-- Reader player -->
+    <string name="reader_status_preparing">A PREPARAR O ÁUDIO</string>
+    <string name="reader_status_playing">EM LEITURA</string>
+    <string name="reader_status_paused">LEITURA EM PAUSA</string>
+    <string name="reader_status_error">ERRO NA LEITURA</string>
+    <string name="reader_status_idle">PRONTO PARA LER</string>
+    <string name="reader_restart">Reiniciar leitura</string>
+    <string name="reader_volume">Volume</string>
+    <string name="estimated_duration_seconds">~%1$d seg</string>
+    <string name="estimated_duration_minutes">~%1$dm %2$ds</string>
     <!-- Notification controls -->
     <string name="reading_status_channel">Estado da Leitura</string>
     <string name="reading_complete_title">Leitura Concluída</string>

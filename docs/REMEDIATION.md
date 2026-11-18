@@ -745,12 +745,38 @@ architecture unless a task explicitly says otherwise.
   skipped; the buttons already give ripple feedback, and scaling every
   `Surface.clickable` call site was not worth the diff for the perceived gain.
 
+### R22. TalkBack semantics and reader transport strings
+
+- Status: `[x]` (implementation, JVM verification, and lint complete; TalkBack
+  walkthrough on a device is still pending)
+- Files: `app/src/main/java/com/echoreading/ui/screen/HomeScreen.kt`,
+  `app/src/main/res/values/strings.xml`, `docs/REMEDIATION.md`
+- Problem: the reader transport exposed terse descriptions (`-10s`, `+10s`,
+  `Pausar`/`Reproduzir` regardless of session state) and hardcoded Portuguese
+  strings; the reading status changed silently for screen readers; the
+  play/pause button had no state description.
+- Change: the player labels, status labels, restart/volume descriptions and
+  formatted estimated duration moved to `strings.xml`. The status label now
+  carries `liveRegion = Polite`, so TalkBack announces preparing/playing/paused/
+  error changes. The play/pause button gets a `stateDescription` with the
+  current session state and a description matching the action (Pausar, Retomar,
+  Começar a ler). Reused the existing `pause_reading`/`resume_reading`/
+  `start_reading`/`stop_reading`/`rewind_ten`/`forward_ten` resources.
+- Acceptance: TalkBack reads the transport actions in full words and announces
+  status changes; the visible Portuguese copy is unchanged; no behaviour
+  change.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors.
+- Limitation: the remaining screens still contain hardcoded Portuguese strings;
+  extraction and a second locale continue in R23.
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R22 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R21 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (no new test needed: transitions are declarative and covered by the existing navigation smoke suite on a device) | R20 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors; new `PlayPauseMorphTest` 4/4 and `MarkdownTextTest` chunk-range cases 3/3 | R19 |
