@@ -100,9 +100,9 @@ class SpeechProcessingService : Service() {
                 recordToFile(id, modelId, pcm)
             } catch (_: CancellationException) {
             } catch (error: LinkageError) {
-                fail(id, modelId, "Gravação de voz", "Motor de transcrição indisponível: ${error.message.orEmpty()}")
+                fail(id, modelId, "Gravação de voz", getString(R.string.error_engine_unavailable, error.message.orEmpty()))
             } catch (error: Exception) {
-                fail(id, modelId, "Gravação de voz", error.message ?: "Erro na gravação")
+                fail(id, modelId, "Gravação de voz", error.message ?: getString(R.string.error_recording))
             } finally {
                 releaseRecorder()
             }
@@ -261,9 +261,9 @@ class SpeechProcessingService : Service() {
                 )
             } catch (_: CancellationException) {
             } catch (error: LinkageError) {
-                fail(id, modelId, fileName, "Motor de transcrição indisponível: ${error.message.orEmpty()}")
+                fail(id, modelId, fileName, getString(R.string.error_engine_unavailable, error.message.orEmpty()))
             } catch (error: Exception) {
-                fail(id, modelId, fileName, error.message ?: "Erro ao processar o áudio")
+                fail(id, modelId, fileName, error.message ?: getString(R.string.error_audio_processing))
             }
         }
     }
@@ -420,10 +420,13 @@ class SpeechProcessingService : Service() {
                         modelId,
                         SpeechToTextState.download.value.copiedBytes,
                         model.downloadBytes,
-                        error.message ?: "Falha no download",
+                        error.message ?: getString(R.string.error_download_failed),
                     ),
                 )
-                showFinishedNotification("Falha no download", error.message ?: "Tente novamente")
+                showFinishedNotification(
+                    getString(R.string.error_download_failed),
+                    error.message ?: getString(R.string.error_retry),
+                )
                 finishWork(clearSavedJob = false)
             }
         }
@@ -473,7 +476,7 @@ class SpeechProcessingService : Service() {
             KIND_TRANSCRIPTION -> {
                 val pcm = File(saved.pcmPath)
                 if (!pcm.isFile) {
-                    fail(saved.jobId, saved.modelId, saved.fileName, "O áudio temporário já não está disponível")
+                    fail(saved.jobId, saved.modelId, saved.fileName, getString(R.string.error_temp_audio_unavailable))
                     return
                 }
                 startWorkForeground("A retomar transcrição", saved.fileName, processingType())
@@ -492,16 +495,16 @@ class SpeechProcessingService : Service() {
                         )
                     } catch (_: CancellationException) {
                     } catch (error: LinkageError) {
-                        fail(saved.jobId, saved.modelId, saved.fileName, "Motor de transcrição indisponível: ${error.message.orEmpty()}")
+                        fail(saved.jobId, saved.modelId, saved.fileName, getString(R.string.error_engine_unavailable, error.message.orEmpty()))
                     } catch (error: Exception) {
-                        fail(saved.jobId, saved.modelId, saved.fileName, error.message ?: "Erro na transcrição")
+                        fail(saved.jobId, saved.modelId, saved.fileName, error.message ?: getString(R.string.error_transcription))
                     }
                 }
             }
             KIND_DECODING -> {
                 val source = File(saved.sourcePath)
                 if (!source.isFile) {
-                    fail(saved.jobId, saved.modelId, saved.fileName, "O ficheiro de origem já não está disponível")
+                    fail(saved.jobId, saved.modelId, saved.fileName, getString(R.string.error_source_unavailable))
                     return
                 }
                 val pcm = File(saved.pcmPath)
@@ -551,9 +554,9 @@ class SpeechProcessingService : Service() {
                         )
                     } catch (_: CancellationException) {
                     } catch (error: LinkageError) {
-                        fail(saved.jobId, saved.modelId, saved.fileName, "Motor de transcrição indisponível: ${error.message.orEmpty()}")
+                        fail(saved.jobId, saved.modelId, saved.fileName, getString(R.string.error_engine_unavailable, error.message.orEmpty()))
                     } catch (error: Exception) {
-                        fail(saved.jobId, saved.modelId, saved.fileName, error.message ?: "Erro ao descodificar")
+                        fail(saved.jobId, saved.modelId, saved.fileName, error.message ?: getString(R.string.error_decoding))
                     }
                 }
             }
@@ -597,16 +600,18 @@ class SpeechProcessingService : Service() {
                 audioPath = SpeechToTextState.snapshot.value.audioPath,
             ),
         )
-        showFinishedNotification("Erro na transcrição", readableError(message))
+        showFinishedNotification(getString(R.string.transcribe_error), readableError(message))
         finishWork(clearSavedJob = false)
     }
 
+    // Map engine codes to localized text for notifications; the UI resolves the same
+    // codes itself (AppAudioCard), so state keeps them raw.
     private fun readableError(message: String): String = when (message) {
-        "transcribe_error_silent" -> "O áudio está em silêncio"
-        "transcribe_error_no_speech" -> "Não foi detetada fala"
-        "transcribe_error_noisy" -> "O áudio tem demasiado ruído"
-        "transcribe_error_low_volume" -> "O volume do áudio é demasiado baixo"
-        "transcribe_error_clipped" -> "O áudio está distorcido"
+        "transcribe_error_silent" -> getString(R.string.transcribe_error_silent)
+        "transcribe_error_no_speech" -> getString(R.string.transcribe_error_no_speech)
+        "transcribe_error_noisy" -> getString(R.string.transcribe_error_noisy)
+        "transcribe_error_low_volume" -> getString(R.string.transcribe_error_low_volume)
+        "transcribe_error_clipped" -> getString(R.string.transcribe_error_clipped)
         else -> message
     }
 
@@ -876,7 +881,7 @@ class SpeechProcessingService : Service() {
 
     override fun onTimeout(startId: Int, fgsType: Int) {
         val saved = checkpoint()
-        fail(saved.jobId, saved.modelId, saved.fileName, "O processamento excedeu o limite do Android")
+        fail(saved.jobId, saved.modelId, saved.fileName, getString(R.string.error_android_limit))
     }
 
     override fun onDestroy() {

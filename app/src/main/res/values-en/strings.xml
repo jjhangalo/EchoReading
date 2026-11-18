@@ -36,6 +36,19 @@
     <string name="close_panel">Close</string>
     <string name="preparing_audio">Preparing audio…</string>
     <string name="reading_error">Couldn’t prepare the reading.</string>
+    <string name="online_voice">Online voice</string>
+    <string name="error_elevenlabs_limit">The text exceeds the ElevenLabs limit set for this application.</string>
+    <string name="error_elevenlabs_voice">Couldn’t use this ElevenLabs voice. Choose another voice and try again.</string>
+    <string name="error_engine_unavailable">Transcription engine unavailable: %1$s</string>
+    <string name="error_recording">Recording error</string>
+    <string name="error_audio_processing">Error processing the audio</string>
+    <string name="error_transcription">Transcription error</string>
+    <string name="error_decoding">Decoding error</string>
+    <string name="error_temp_audio_unavailable">The temporary audio is no longer available</string>
+    <string name="error_source_unavailable">The source file is no longer available</string>
+    <string name="error_android_limit">Processing exceeded the Android limit</string>
+    <string name="error_download_failed">Download failed</string>
+    <string name="error_retry">Try again</string>
     <string name="offline_voice">Built-in offline voice</string>
 
     <!-- Navigation tabs -->

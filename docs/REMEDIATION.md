@@ -830,15 +830,39 @@ architecture unless a task explicitly says otherwise.
 
 ### R24. Translate service-layer error messages
 
-- Status: `[ ]`
+- Status: `[x]`
 - Problem: R23 covers Compose copy only. Errors raised in services reach the UI
   verbatim (`ReaderState.error`, transcription failures, ElevenLabs auth
   failures), so an English-locale user still sees Portuguese error text.
-- Plan: replace the literal messages with resource IDs or typed error enums in
-  the service layer, and resolve them in the UI with `stringResource`. Start
-  with the user-triggered paths (`ReaderPlaybackService` ElevenLabs limit and
-  voice failure, `SpeechProcessingService.readableError`) and leave the
-  `require`/`check` contract messages as developer-facing English.
+- Files: `app/src/main/res/values/strings.xml`,
+  `app/src/main/res/values-en/strings.xml`,
+  `app/src/main/java/com/echoreading/reader/ReaderPlaybackService.kt`,
+  `app/src/main/java/com/echoreading/speech/SpeechProcessingService.kt`.
+- Implementation: both services are `Context`s, so errors are resolved with
+  `getString` at the point of creation, following the precedent already in
+  those files (`download_failed`, `reading_error`) — no error-code plumbing
+  needed. Moved to resources: the ElevenLabs limit and voice-failure messages
+  in `ReaderPlaybackService` (plus the `Voz online` media-metadata fallback),
+  and in `SpeechProcessingService` every `fail()` call-site literal
+  (engine-unavailable with `%1$s`, recording/processing/transcription/decoding
+  fallbacks, the resume-path gone-file messages, the Android timeout limit),
+  the download-failure notification, the failure-notification title, and
+  `readableError` (now reusing the existing `transcribe_error_*` keys).
+  `values-en` gained the 13 matching keys. State keeps the
+  `transcribe_error_*` codes raw: the UI already resolves them in
+  `AppAudioCard`, the notification resolves them through `readableError`.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors;
+  key-parity check: 292/292 keys in `values`/`values-en`, identical format
+  specifiers.
+- Limitation: user-visible Portuguese remains outside this item's scope:
+  - `require`/`check` contract messages (per plan) — including
+    `AudioDecoder`'s "O áudio excede o limite de 30 minutos" / "O ficheiro
+    não contém uma faixa de áudio" and `OfflineSpeech`'s download
+    `IOException`/integrity checks, which surface through `error.message`.
+  - non-error service copy: STT notification/status titles ("A gravar voz",
+    "A transcrever", "Transcrição concluída", "Modelo pronto", …) and the
+    `"Gravação de voz"` display file name; a mechanical follow-up if wanted.
 
 ## Verification log
 
@@ -846,6 +870,7 @@ Add newest entries at the top. Include command, result, and which item it covers
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` + pt/en key-parity script | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors; 292/292 keys in `values`/`values-en` with identical format specifiers | R24 |
 | 2026-11-18 | `adb install -r app-debug.apk` + `am start` on 25028RN03A, screenshots of the reader card and transport | App launched, extracted Portuguese copy rendered, play tap Crossfaded the FAB to the preparing spinner; no FATAL EXCEPTION; animation/locale walkthrough interrupted (device is a personal phone) and the app was force-stopped | R19-R23 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (4 `LocalContextGetResourceValueCall` errors found and fixed) | R23 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R22 |

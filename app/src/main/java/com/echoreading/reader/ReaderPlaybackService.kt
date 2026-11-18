@@ -258,7 +258,7 @@ class ReaderPlaybackService : MediaSessionService() {
         ) {
             ReaderState.snapshot.value = ReaderState.snapshot.value.copy(
                 status = ReadingStatus.ERROR,
-                error = "O texto excede o limite ElevenLabs definido para esta aplicação.",
+                error = getString(R.string.error_elevenlabs_limit),
             )
             ReaderState.save(this)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -384,7 +384,7 @@ class ReaderPlaybackService : MediaSessionService() {
                         if (generationId == id) stopReading()
                     } else {
                         failReading(id, if (onlineVoiceId != null)
-                            "Não foi possível usar esta voz ElevenLabs. Escolha outra voz e tente novamente."
+                            getString(R.string.error_elevenlabs_voice)
                         else e.message)
                     }
                 }
@@ -789,7 +789,7 @@ class ReaderPlaybackService : MediaSessionService() {
     ): MediaMetadata {
         val title = formatTitle(text, getString(R.string.app_name))
         val voiceLabel = if (usingElevenLabs) {
-            "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(this) ?: "Voz online"}"
+            "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(this) ?: getString(R.string.online_voice)}"
         } else OfflineVoice.option(this, voiceId).label
         return MediaMetadata.Builder()
             .setTitle(title)
