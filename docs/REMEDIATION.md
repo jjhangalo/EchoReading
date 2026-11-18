@@ -688,12 +688,43 @@ architecture unless a task explicitly says otherwise.
   chunk position) and is deferred. The spring relayouts the text per frame for
   the short chunk transition only, not continuously.
 
+### R20. Motion graphics: tab transitions and expanded-card entrance
+
+- Status: `[x]` (implementation, JVM verification, and lint complete; visual
+  check on a device is still pending)
+- Files: `app/src/main/java/com/echoreading/ui/EcoApp.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppTextCard.kt`,
+  `docs/REMEDIATION.md`
+- Problem: navigating between the four tabs cut instantly, and opening the
+  expanded text card was an abrupt full-screen swap.
+- Change: `NavHost` now uses directional slide + fade transitions. The tab
+  order (`home`, `transcribe`, `history`, `settings`) decides the direction:
+  moving right in that order enters from the right and exits left; moving left
+  (including Back and the pop-to-home tab behaviour) mirrors it. All four
+  transition slots (`enter`, `exit`, `popEnter`, `popExit`) use the same rule.
+  The expanded text card's surface scales from 94% and fades in on open.
+  Both respect `rememberReducedMotion()` and snap when the system animation
+  scale is zero.
+- Acceptance: tab changes slide in the expected direction instead of cutting;
+  opening the full-screen card has a short expansion; reduced-motion users get
+  no transitions; no navigation behaviour (save/restore state, Back, share
+  routing) changes.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors. The
+  navigation smoke tests in `ReaderAndroidSmokeTest` were not run in this
+  session; the existing JVM suite compiles the new routes unchanged.
+- Limitation: the expanded card is a `Dialog`, a separate window, so a true
+  Compose shared-element transition across it is not supported; the scale/fade
+  entrance is the approximation. The close action has no exit animation because
+  the dialog window is disposed immediately.
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (no new test needed: transitions are declarative and covered by the existing navigation smoke suite on a device) | R20 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors; new `PlayPauseMorphTest` 4/4 and `MarkdownTextTest` chunk-range cases 3/3 | R19 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 571 tests, 0 failures, 0 errors, 1 skipped (33 suites; `OnnxMetadataTest.extractMetadataFromConfig` is conditional on the provisioned TTS config); lint 0 errors, 94 warnings, 1 hint | R18 |
 | 2026-11-18 | Physical 25028RN03A: `adb shell` RAM query | `ro.config.low_ram=true`, `MemTotal` 2,855,284 kB (~2.7 GiB); by the shipped heuristic this device gets Tiny; user reported the app working as expected (limited manual test) | R18 |

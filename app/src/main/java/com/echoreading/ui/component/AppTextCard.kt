@@ -2,7 +2,10 @@ package com.echoreading.ui.component
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -468,8 +472,31 @@ private fun ExpandedTextDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
+        val reducedMotion = rememberReducedMotion()
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        val scale by animateFloatAsState(
+            targetValue = if (shown) 1f else 0.94f,
+            animationSpec = if (reducedMotion) {
+                snap()
+            } else {
+                spring(dampingRatio = 0.9f, stiffness = 380f)
+            },
+            label = "expanded_card_scale",
+        )
+        val alpha by animateFloatAsState(
+            targetValue = if (shown) 1f else 0f,
+            animationSpec = tween(if (reducedMotion) 0 else 180),
+            label = "expanded_card_alpha",
+        )
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                },
             color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
