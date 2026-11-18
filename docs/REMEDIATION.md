@@ -1,6 +1,6 @@
 # EchoReading Remediation Plan
 
-Last updated: 2026-10-22
+Last updated: 2026-11-18
 Base revision: `7e45cd0` (branch `dev`; version 2.2.0 at the start of this work, currently 2.3.0)
 
 This file is the durable source of truth for the remediation work. Any agent or
@@ -589,12 +589,66 @@ architecture unless a task explicitly says otherwise.
   exercised on the device; the sheet listing and persisted selection were. The
   release artifact uses the local test keystore, not a production key.
 
+### R18. Parakeet TDT v3 model, dynamic recommendation, and silence-aware chunking
+
+- Status: `[~]` (implementation and JVM verification complete; limited
+  on-device smoke test reported by the user; Parakeet-specific checks pending)
+- Files: `app/src/main/java/com/echoreading/speech/OfflineSpeech.kt`,
+  `app/src/main/java/com/echoreading/speech/AudioDecoder.kt`,
+  `app/src/main/java/com/echoreading/speech/SpeechProcessingService.kt`,
+  `app/src/main/java/com/echoreading/ui/screen/SpeechToTextScreen.kt`,
+  `app/src/main/java/com/echoreading/SettingsScreen.kt`,
+  `app/src/main/res/values/strings.xml`,
+  `app/src/test/java/com/echoreading/speech/OfflineSpeechCatalogTest.kt`,
+  `docs/REMEDIATION.md`
+- Change: added `parakeet-v3` (NVIDIA parakeet-tdt-0.6b-v3 int8, exported by
+  sherpa-onnx at `csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`,
+  revision `ed5d745623472f97cfc2e6c2916ee248798fc5a8`; four SHA-256-pinned
+  files totalling 670,576,784 bytes, model weights under CC BY 4.0) decoded
+  through the `nemo_transducer` path with the existing sherpa-onnx 1.13.8
+  dependency. `tiny`/`base`/`small` are unchanged and still available. Each
+  catalog entry now carries an `advantage` short label shown next to the name
+  in the Transcrever model sheet and in Settings: Tiny "Mais rápido", Base
+  "Equilibrado", Small "Mais acertos · Multilingue", Parakeet v3 "Pontuação e
+  mais acertos". The "· Recomendado" mark and the initial download button are
+  computed per device instead of a fixed flag:
+  `recommendModelId(totalMem, lowRamDevice)` picks `tiny` below 3 GiB of
+  usable RAM or on low-RAM devices, `base` for 3-5 GiB, and `parakeet-v3` at
+  5 GiB or more; usable totals sit about 0.5 GiB below the advertised size, so
+  the buckets match 4 GB (Base) and 6 GB (Parakeet) phones. The Redmi A5
+  reports `ro.config.low_ram=true` with `MemTotal` 2,855,284 kB (~2.7 GiB), so
+  it recommends Tiny as intended for low-RAM devices. For the Parakeet engine, PCM is
+  split at the quietest 100 ms frame inside a 12-20 s window (fixed 30 s
+  windows kept for Whisper), with a light gain boost for quiet input
+  (k2-fsa/sherpa-onnx#4024); deterministic boundaries keep the pause/resume
+  checkpoint correct. `transcribe_model_required` no longer hardcodes "~150 MB".
+- Acceptance: all four models appear side by side with their advantage label in
+  both lists; the recommended mark follows the device; Parakeet transcribes the
+  spoken language of the 25 supported European languages without a language
+  selector; Whisper remains the fallback for other languages.
+- Verification (so far): `./gradlew :app:testDebugUnitTest :app:lintDebug
+  --console=plain` passed with 571 tests, 0 failures, 0 errors, 1 skipped
+  (33 suites; the skip is `OnnxMetadataTest.extractMetadataFromConfig`, which
+  is conditional on the provisioned TTS config) and lint 0 errors, 94 warnings,
+  1 hint. New tests cover the four-model catalog with
+  pinned sizes and digests, the memory-based recommendation, fixed Whisper
+  windows, silence cuts inside the 12-20 s window, and the quiet-chunk gain
+  boost. On 2026-11-18 the user reported the app working as expected on the
+  25028RN03A after the debug-signed reinstall (limited manual testing); the
+  device reports `ro.config.low_ram=true` and `MemTotal` 2,855,284 kB (~2.7 GiB),
+  so the recommendation selects Tiny as designed. Still open:
+  `connectedDebugAndroidTest` and the Parakeet-specific device checks
+  (downloading the 671 MB model, transcribing Portuguese audio, and confirming
+  punctuation/capitalization quality and RAM headroom).
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 571 tests, 0 failures, 0 errors, 1 skipped (33 suites; `OnnxMetadataTest.extractMetadataFromConfig` is conditional on the provisioned TTS config); lint 0 errors, 94 warnings, 1 hint | R18 |
+| 2026-11-18 | Physical 25028RN03A: `adb shell` RAM query | `ro.config.low_ram=true`, `MemTotal` 2,855,284 kB (~2.7 GiB); by the shipped heuristic this device gets Tiny; user reported the app working as expected (limited manual test) | R18 |
 | 2026-10-22 | `.\gradlew.bat :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 567 tests, 0 failures, 0 errors, 1 skipped (33 suites); lint 0 errors, 94 warnings, 1 hint | R17 |
 | 2026-10-22 | Physical 25028RN03A manual: voice queue + global sheet | Edresson active / Amy `Na fila • 1.º`; both installed after chain; chip appeared on Settings and Discovery; sheet showed active progress + queued `Cadu 1.º`; removed Cadu, left Faber active, cancelled Faber; voice list restored to 5/356 MB | R17 |
 | 2026-10-22 | Physical 25028RN03A manual: STT model sheet + playback | Tiny/Base/Small listed; selected Small persisted (`Modelo selecionado: Whisper Small`); imported 27 s MP3 showed card; `MediaPlayer` `state:started` -> `state:paused`; card persisted and played again after force-stop/relaunch; user confirmed audible | R17 |
@@ -659,7 +713,12 @@ model-dependent tests now execute instead of being skipped.
    the FIFO queue, global transfer chip/sheet, removal/cancel controls, STT
    model sheet, and STT play/pause all exercised successfully. Transcription
    accuracy remains
-   model-dependent. Remaining release steps are external: production
+   model-dependent. R18 is implemented and JVM-verified: the Parakeet TDT v3
+   catalog entry (nemo_transducer), dynamic model recommendation by RAM,
+   silence-aware 12-20 s chunking with quiet-input gain boost for the Parakeet
+   engine, and advantage labels in both model lists; pending physical-device
+   validation of the 671 MB download/transcription on the 25028RN03A. Remaining
+   release steps are external: production
    keystore/signing, Play submission and target-API policy check, and vendoring
    or checksum-verifying the pinned JitPack Sherpa AAR. Optional follow-ups: an
    automated history-DB failure test and a Macrobenchmark frame-timing test.
