@@ -320,7 +320,7 @@ fun SpeechProcessResultCard(
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, transcribedText)
                     }
-                    ctx.startActivity(Intent.createChooser(intent, "Partilhar"))
+                    ctx.startActivity(Intent.createChooser(intent, ctx.getString(R.string.transcribe_share)))
                 },
             )
             AppTextAction(
@@ -331,7 +331,7 @@ fun SpeechProcessResultCard(
                         ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(
                         ClipData.newPlainText(
-                            "Transcrição",
+                            "text",
                             transcribedText,
                         ),
                     )

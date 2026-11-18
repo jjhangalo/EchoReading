@@ -2,6 +2,7 @@ package com.echoreading.ui.component
 
 import android.content.Intent
 import android.widget.Toast
+import com.echoreading.R
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -67,6 +69,9 @@ fun ElevenLabsSettingsSection() {
     var search by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val browserError = stringResource(R.string.elevenlabs_browser_error)
+    val authUnavailable = stringResource(R.string.elevenlabs_auth_unavailable)
+    val voicesRefreshFailed = stringResource(R.string.voices_refresh_failed)
 
     fun loadVoices(query: String = "") {
         scope.launch {
@@ -87,7 +92,7 @@ fun ElevenLabsSettingsSection() {
             }.onFailure {
                 voices = emptyList()
                 error = if (NetworkAccess.isConnectionFailure(it) || !NetworkAccess.isAvailable(context))
-                    null else "Não foi possível atualizar as vozes."
+                    null else voicesRefreshFailed
             }
             loading = false
         }
@@ -113,15 +118,15 @@ fun ElevenLabsSettingsSection() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("ElevenLabs", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-                    Text(if (enabled) "Vozes online · ligação à internet necessária"
-                        else "Desativado · a voz offline continua disponível",
+                    Text(if (enabled) stringResource(R.string.elevenlabs_online_subtitle)
+                        else stringResource(R.string.elevenlabs_offline_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = enabled, onCheckedChange = { ElevenLabsAuth.setEnabled(context, it) })
             }
             Text(
-                "Com as vozes ElevenLabs ativas, o texto a sintetizar é enviado para a ElevenLabs. Sem esta opção, a leitura usa apenas vozes locais.",
+                stringResource(R.string.elevenlabs_privacy),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -129,7 +134,7 @@ fun ElevenLabsSettingsSection() {
 
             HorizontalDivider()
             if (!connected) {
-                Text("Ligue a sua conta ElevenLabs para explorar vozes sem introduzir uma chave de API.",
+                Text(stringResource(R.string.elevenlabs_connect_hint),
                     style = MaterialTheme.typography.bodySmall)
                 Button(onClick = {
                     ElevenLabsAuth.beginSignIn(context).onSuccess { uri ->
@@ -138,23 +143,23 @@ fun ElevenLabsSettingsSection() {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             })
                         }
-                            .onFailure { Toast.makeText(context, "Não foi possível abrir o navegador.", Toast.LENGTH_SHORT).show() }
+                            .onFailure { Toast.makeText(context, browserError, Toast.LENGTH_SHORT).show() }
                     }.onFailure {
-                        Toast.makeText(context, it.message ?: "Autenticação indisponível.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, it.message ?: authUnavailable, Toast.LENGTH_LONG).show()
                     }
-                }) { Text("Iniciar sessão na ElevenLabs") }
+                }) { Text(stringResource(R.string.elevenlabs_sign_in)) }
                 return@Column
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Conta ligada", style = MaterialTheme.typography.labelLarge)
-                    selectedName?.let { Text("Voz: $it", style = MaterialTheme.typography.bodySmall) }
+                    Text(stringResource(R.string.elevenlabs_connected), style = MaterialTheme.typography.labelLarge)
+                    selectedName?.let { Text(stringResource(R.string.elevenlabs_voice_prefix, it), style = MaterialTheme.typography.bodySmall) }
                 }
-                OutlinedButton(onClick = { scope.launch { ElevenLabsAuth.disconnect(context) } }) { Text("Sair") }
+                OutlinedButton(onClick = { scope.launch { ElevenLabsAuth.disconnect(context) } }) { Text(stringResource(R.string.elevenlabs_sign_out)) }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Usar na leitura", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.elevenlabs_use_reading), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = readingWithElevenLabs,
                     enabled = selectedVoice != null,
@@ -162,13 +167,13 @@ fun ElevenLabsSettingsSection() {
                 )
             }
             if (selectedVoice == null) {
-                Text("Escolha uma voz para ativar a leitura online.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.elevenlabs_pick_voice_hint), style = MaterialTheme.typography.bodySmall)
             }
 
             HorizontalDivider()
-            Text("Explorar vozes", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.elevenlabs_explore), style = MaterialTheme.typography.titleSmall)
             if (catalogFromAccount == false && NetworkAccess.isAvailable(context)) Text(
-                "A mostrar vozes padrão disponíveis para esta conta.",
+                stringResource(R.string.elevenlabs_default_voices),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -176,10 +181,10 @@ fun ElevenLabsSettingsSection() {
                 value = search,
                 onValueChange = { search = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Nome da voz") },
+                label = { Text(stringResource(R.string.elevenlabs_voice_name)) },
                 trailingIcon = {
                     IconButton(onClick = { loadVoices(search) }, enabled = !loading) {
-                        Icon(Icons.Default.Search, contentDescription = "Procurar vozes")
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.elevenlabs_search_voices))
                     }
                 },
                 singleLine = true,
@@ -200,11 +205,11 @@ fun ElevenLabsSettingsSection() {
                 }
             }
             if (!loading && voices.isEmpty() && error == null && NetworkAccess.isAvailable(context)) {
-                Text("Sem vozes para mostrar.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.elevenlabs_no_voices), style = MaterialTheme.typography.bodySmall)
             }
 
             HorizontalDivider()
-            Text("Limite desta aplicação por leitura", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.elevenlabs_app_limit), style = MaterialTheme.typography.titleSmall)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -213,20 +218,20 @@ fun ElevenLabsSettingsSection() {
                     FilterChip(
                         selected = maxCharacters == limit,
                         onClick = { ElevenLabsAuth.setMaxCharactersPerReading(context, limit) },
-                        label = { Text("${limit / 1_000} mil") },
+                        label = { Text(stringResource(R.string.elevenlabs_thousand, limit / 1_000)) },
                     )
                 }
             }
 
             quota?.let { usage ->
                 HorizontalDivider()
-                Text("Limites da conta · ${usage.tier}", style = MaterialTheme.typography.titleSmall)
-                Text("Utilização: ${usage.used} / ${usage.limit}", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.elevenlabs_account_limits, usage.tier), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.elevenlabs_usage, usage.used, usage.limit), style = MaterialTheme.typography.bodyMedium)
                 LinearProgressIndicator(
                     progress = { (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth(),
                 )
-            } ?: Text("Limites da conta indisponíveis nesta ligação.",
+            } ?: Text(stringResource(R.string.elevenlabs_limits_unavailable),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

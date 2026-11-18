@@ -446,16 +446,16 @@ private fun TranscriptionModelSheet(
                                     downloading -> IconButton(onClick = onPause) {
                                         Icon(
                                             Icons.Default.Pause,
-                                            contentDescription = "Pausar transferência",
+                                            contentDescription = stringResource(R.string.stt_pause_transfer),
                                         )
                                     }
                                     pausedOrFailed -> TextButton(onClick = onResume) {
-                                        Text("Retomar")
+                                        Text(stringResource(R.string.resume))
                                     }
                                     installed -> TextButton(
                                         onClick = { onSelect(model.id) },
                                     ) {
-                                        Text("Usar")
+                                        Text(stringResource(R.string.use))
                                     }
                                     else -> FilledTonalButton(
                                         onClick = { onDownload(model.id) },
@@ -467,7 +467,7 @@ private fun TranscriptionModelSheet(
                                             modifier = Modifier.size(16.dp),
                                         )
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Transferir")
+                                        Text(stringResource(R.string.download_voice))
                                     }
                                 }
                             },

@@ -84,6 +84,10 @@
     <string name="date_start">Data inicial</string>
     <string name="date_end">Data final</string>
     <string name="date_today">Hoje</string>
+    <string name="date_mode_hint">Dia único ou intervalo</string>
+    <string name="date_selection_mode">Modo de seleção</string>
+    <string name="history_today_at">Hoje, às %1$s</string>
+    <string name="history_yesterday_at">Ontem, às %1$s</string>
     <string name="apply_filter">Aplicar</string>
     <string name="clear_filter">Limpar</string>
 
@@ -182,4 +186,115 @@
     <string name="stt_screen_record_tip">Dica: Para melhores resultados, grave num ambiente silencioso e mantenha o telemóvel a cerca de 15cm da boca.</string>
     <string name="transcribe_error">Erro na Transcrição</string>
     <string name="transcription_label">Transcrição</string>
+
+    <!-- Shared UI actions and labels -->
+    <string name="more_options">Opções</string>
+    <string name="clear_search">Limpar pesquisa</string>
+    <string name="retry">Tentar novamente</string>
+    <string name="resume">Retomar</string>
+    <string name="use">Usar</string>
+    <string name="select_language">Selecionar idioma</string>
+    <string name="refresh_catalog">Atualizar catálogo</string>
+    <string name="clear_filters">Limpar filtros</string>
+    <string name="search_voices">Pesquisar vozes</string>
+    <string name="filter_language_current">Filtrar idioma. Atual: %1$s</string>
+    <string name="voice_selected">Selecionada</string>
+    <string name="no_matching_voices">Sem vozes correspondentes.</string>
+    <string name="no_online_voices">Sem vozes online disponíveis.</string>
+    <string name="elevenlabs_online">ElevenLabs · online</string>
+    <string name="stt_pause_transfer">Pausar transferência</string>
+
+    <string name="voices_on_device_offline">No dispositivo · offline</string>
+    <string name="voice_available_on_device">Disponível no dispositivo</string>
+    <string name="voice_transferring">A transferir…</string>
+    <string name="download_voice_action">Transferir voz</string>
+    <string name="active">Ativo</string>
+    <string name="voice_online">Voz online</string>
+    <!-- Voice picker -->
+    <string name="voice_rhythm_title">Voz e ritmo</string>
+    <string name="choose_voice_action">Escolher voz</string>
+    <string name="reading_speed">Velocidade de leitura</string>
+    <string name="search_voice">Pesquisar voz</string>
+
+    <!-- Settings extras -->
+    <string name="voice_in_use">VOZ EM USO</string>
+    <string name="listen_sample">Ouvir Amostra</string>
+    <string name="remove">Remover</string>
+    <string name="pause_download">Pausar download</string>
+    <string name="storage_total">Espaço total ocupado pela app</string>
+    <string name="storage_voices">Dados de vozes instaladas (TTS)</string>
+    <string name="storage_speech_model">Modelo de transcrição (Whisper STT)</string>
+    <string name="storage_history">Textos guardados no histórico</string>
+    <string name="storage_cache">Memória cache temporária</string>
+    <string name="delete_voice_question">Eliminar voz %1$s?</string>
+    <string name="delete_voice_body">Esta voz libertará %1$s MB de armazenamento. Poderá transferi-la novamente a qualquer momento.</string>
+    <string name="delete_speech_question">Eliminar %1$s?</string>
+    <string name="delete_speech_body">O modelo pode ser descarregado novamente a qualquer momento.</string>
+    <string name="delete_model_question">Eliminar modelo de transcrição?</string>
+    <string name="delete_model_body">O modelo de transcrição Whisper (%1$s MB) será removido do dispositivo. Poderá voltar a descarregá-lo quando quiser.</string>
+    <string name="delete_voices_question">Eliminar vozes transferidas?</string>
+    <string name="delete_voices_body">Todas as vozes adicionais descarregadas serão removidas (%1$s MB). A voz padrão embutida permanecerá disponível.</string>
+    <string name="delete_model_tooltip">Eliminar %1$s</string>
+
+    <!-- ElevenLabs -->
+    <string name="elevenlabs_online_subtitle">Vozes online · ligação à internet necessária</string>
+    <string name="elevenlabs_offline_subtitle">Desativado · a voz offline continua disponível</string>
+    <string name="elevenlabs_privacy">Com as vozes ElevenLabs ativas, o texto a sintetizar é enviado para a ElevenLabs. Sem esta opção, a leitura usa apenas vozes locais.</string>
+    <string name="elevenlabs_browser_error">Não foi possível abrir o navegador.</string>
+    <string name="elevenlabs_auth_unavailable">Autenticação indisponível.</string>
+    <string name="elevenlabs_default_voices">A mostrar vozes padrão disponíveis para esta conta.</string>
+    <string name="elevenlabs_thousand">%1$d mil</string>
+    <string name="elevenlabs_connect_hint">Ligue a sua conta ElevenLabs para explorar vozes sem introduzir uma chave de API.</string>
+    <string name="elevenlabs_sign_in">Iniciar sessão na ElevenLabs</string>
+    <string name="elevenlabs_connected">Conta ligada</string>
+    <string name="elevenlabs_voice_prefix">Voz: %1$s</string>
+    <string name="elevenlabs_sign_out">Sair</string>
+    <string name="elevenlabs_use_reading">Usar na leitura</string>
+    <string name="elevenlabs_pick_voice_hint">Escolha uma voz para ativar a leitura online.</string>
+    <string name="elevenlabs_explore">Explorar vozes</string>
+    <string name="elevenlabs_voice_name">Nome da voz</string>
+    <string name="elevenlabs_search_voices">Procurar vozes</string>
+    <string name="elevenlabs_no_voices">Sem vozes para mostrar.</string>
+    <string name="elevenlabs_app_limit">Limite desta aplicação por leitura</string>
+    <string name="elevenlabs_account_limits">Limites da conta · %1$s</string>
+    <string name="elevenlabs_usage">Utilização: %1$s / %2$s</string>
+    <string name="elevenlabs_limits_unavailable">Limites da conta indisponíveis nesta ligação.</string>
+    <string name="settings_badge_theme">Tema e Cores</string>
+    <string name="settings_voice_header">DEFINIÇÕES DE VOZ</string>
+    <string name="voice_demo_playing">A reproduzir demonstração…</string>
+    <string name="voice_demo_listen">Ouvir Demonstração da Voz</string>
+    <string name="online_speed_note">A velocidade online depende das opções oferecidas pela voz ElevenLabs.</string>
+    <string name="voice_default_builtin">Padrão · Integrado (%1$s MB)</string>
+    <string name="voice_downloaded_label">Neutral · Transferida (%1$s MB)</string>
+    <string name="voice_language_catalog">Escolher idioma e transferir do catálogo</string>
+    <string name="quick_download_header">TRANSFERÊNCIA RÁPIDA</string>
+    <string name="suggestions_title">Sugestões</string>
+    <string name="stt_header">TRANSCRIÇÃO DE VOZ (STT)</string>
+    <string name="memory_header">MEMÓRIA &amp; DADOS</string>
+    <string name="cleanup_actions">Ações de Limpeza</string>
+    <string name="cleanup_voices_sub">Libertará %1$s MB de ficheiros descarregados</string>
+    <string name="cleanup_delete_speech_title">Eliminar modelo de transcrição (STT)</string>
+    <string name="cleanup_delete_speech_sub">Libertará %1$s MB do modelo Whisper</string>
+    <string name="cleanup_history_sub">Limpa o histórico local mantendo os favoritos</string>
+    <string name="cleanup_cache_sub">Ficheiros temporários e áudios renderizados</string>
+    <string name="action_immediate">Ação Imediata</string>
+    <string name="audio_cache_cleared">Cache de áudio limpa</string>
+    <string name="history_cleared">Histórico limpo (favoritos mantidos)</string>
+    <string name="speech_model_deleted">Modelo de transcrição eliminado</string>
+    <string name="voice_catalog_load_error">Falha ao carregar o catálogo de vozes</string>
+    <string name="voice_catalog_loading">A carregar catálogo de vozes…</string>
+    <string name="voice_catalog_failed_title">Não foi possível carregar o catálogo</string>
+    <string name="voice_catalog_failed_body">Verifique a ligação à internet e tente novamente.</string>
+    <string name="voice_downloaded_success">Voz %1$s transferida com sucesso!</string>
+    <string name="voice_download_error">Erro ao transferir voz: %1$s</string>
+    <string name="download_failed_generic">Falha na transferência</string>
+    <string name="quality_high">Alta qualidade</string>
+    <string name="quality_medium">Média qualidade</string>
+    <string name="quality_low">Qualidade leve</string>
+    <string name="quality_x_low">Qualidade ultraleve</string>
+    <string name="voices_refresh_failed">Não foi possível atualizar as vozes.</string>
+    <string name="history_saved_badge">Guardado</string>
+    <string name="history_item_stats">%1$d palavras • ~%2$ds</string>
+    <string name="app_engine_title">Eco Leitura Motor v2.3.0 (Material 3)</string>
+    <string name="app_engine_subtitle">Sintetizador neural ativo offline com privacidade protegida</string>
 </resources>

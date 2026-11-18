@@ -1,5 +1,7 @@
 package com.echoreading
 
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import android.content.Context
 import android.media.MediaPlayer
 import android.net.Uri
@@ -180,7 +182,7 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
                 iconContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                 iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
                 title = stringResource(R.string.settings_theme),
-                badgeText = "Tema e Cores",
+                badgeText = stringResource(R.string.settings_badge_theme),
                 badgePrimary = false,
                 subtitle = stringResource(R.string.settings_theme_sub),
                 onClick = { onNavigate("personalizacao") }
@@ -241,12 +243,12 @@ private fun SettingsMainMenu(onNavigate: (String) -> Unit) {
                 )
                 Column {
                     Text(
-                        "Eco Leitura Motor v2.3.0 (Material 3)",
+                        stringResource(R.string.app_engine_title),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        "Sintetizador neural ativo offline com privacidade protegida",
+                        stringResource(R.string.app_engine_subtitle),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -699,9 +701,10 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                 )
             }
             Text(
-                "DEFINIÇÕES DE VOZ",
+                stringResource(R.string.settings_voice_header),
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { heading() },
             )
         }
 
@@ -720,7 +723,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     selectedTab = "leitura"
                     scope.launch { scrollState.animateScrollTo(0) }
                 },
-                text = { Text("Leitura") },
+                text = { Text(stringResource(R.string.tab_home)) },
             )
             Tab(
                 selected = selectedTab == "transcricao",
@@ -728,7 +731,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     selectedTab = "transcricao"
                     scope.launch { scrollState.animateScrollTo(0) }
                 },
-                text = { Text("Transcrição") },
+                text = { Text(stringResource(R.string.transcription_label)) },
             )
             Tab(
                 selected = selectedTab == "elevenlabs",
@@ -775,9 +778,9 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         modifier = Modifier.size(20.dp)
                     )
                     Column(Modifier.weight(1f)) {
-                        Text("VOZ EM USO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.voice_in_use), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         Text(
-                            if (onlineReading) "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(context) ?: "Voz online"}"
+                            if (onlineReading) "ElevenLabs · ${ElevenLabsAuth.selectedVoiceName(context) ?: stringResource(R.string.voice_online)}"
                             else activeVoice.label,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             maxLines = 2,
@@ -859,12 +862,15 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (isDemonstratingActive) "A reproduzir demonstração…" else "Ouvir Demonstração da Voz",
+                        stringResource(
+                            if (isDemonstratingActive) R.string.voice_demo_playing
+                            else R.string.voice_demo_listen
+                        ),
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
                 if (onlineReading) Text(
-                    "A velocidade online depende das opções oferecidas pela voz ElevenLabs.",
+                    stringResource(R.string.online_speed_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -962,8 +968,13 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                             )
                             Spacer(Modifier.height(3.dp))
                             Text(
-                                if (voice.url == null) "Padrão · Integrado (${String.format(Locale.US, "%.0f", installedMb)} MB)"
-                                else "Neutral · Transferida (${String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f))} MB)",
+                                if (voice.url == null) stringResource(
+                                    R.string.voice_default_builtin,
+                                    String.format(Locale.US, "%.0f", installedMb),
+                                ) else stringResource(
+                                    R.string.voice_downloaded_label,
+                                    String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f)),
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -985,7 +996,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                                 } else {
                                     Icon(
                                         Icons.AutoMirrored.Filled.VolumeUp,
-                                        contentDescription = "Ouvir Amostra",
+                                        contentDescription = stringResource(R.string.listen_sample),
                                         tint = if (isSelected) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
@@ -1000,7 +1011,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                                 ) {
                                     Icon(
                                         Icons.Default.DeleteOutline,
-                                        contentDescription = "Remover",
+                                        contentDescription = stringResource(R.string.remove),
                                         tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -1042,7 +1053,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        "Escolher idioma e transferir do catálogo",
+                        stringResource(R.string.voice_language_catalog),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1077,7 +1088,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            "TRANSFERÊNCIA RÁPIDA",
+                            stringResource(R.string.quick_download_header),
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
@@ -1089,7 +1100,7 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Sugestões",
+                        stringResource(R.string.suggestions_title),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
@@ -1329,9 +1340,14 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         voiceToDelete?.let { voice ->
             AlertDialog(
                 onDismissRequest = { voiceToDelete = null },
-                title = { Text("Eliminar voz ${voice.label}?") },
+                title = { Text(stringResource(R.string.delete_voice_question, voice.label)) },
                 text = {
-                    Text("Esta voz libertará ${String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f))} MB de armazenamento. Poderá transferi-la novamente a qualquer momento.")
+                    Text(
+                        stringResource(
+                            R.string.delete_voice_body,
+                            String.format(Locale.US, "%.0f", voice.fileSize / (1024f * 1024f)),
+                        )
+                    )
                 },
                 confirmButton = {
                     TextButton(
@@ -1382,8 +1398,8 @@ private fun SettingsVoice(onBack: () -> Unit, onDiscoverVoices: () -> Unit) {
         speechModelToDelete?.let { model ->
             AlertDialog(
                 onDismissRequest = { speechModelToDelete = null },
-                title = { Text("Eliminar ${model.label}?") },
-                text = { Text("O modelo pode ser descarregado novamente a qualquer momento.") },
+                title = { Text(stringResource(R.string.delete_speech_question, model.label)) },
+                text = { Text(stringResource(R.string.delete_speech_body)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -1436,12 +1452,13 @@ private fun SpeechModelManagement(
                 modifier = Modifier.size(18.dp),
             )
             Text(
-                "TRANSCRIÇÃO DE VOZ (STT)",
+                stringResource(R.string.stt_header),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp,
                 ),
                 color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.semantics { heading() },
             )
         }
 
@@ -1502,26 +1519,26 @@ private fun SpeechModelManagement(
                                     shape = CircleShape,
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
                                 ) {
-                                    Text(if (selected) "Ativo" else "Usar")
+                                    Text(stringResource(if (selected) R.string.active else R.string.use))
                                 }
                                 IconButton(onClick = { onDelete(model.id) }) {
                                     Icon(
                                         Icons.Default.DeleteOutline,
-                                        contentDescription = "Eliminar ${model.label}",
+                                        contentDescription = stringResource(R.string.delete_model_tooltip, model.label),
                                         tint = MaterialTheme.colorScheme.error,
                                     )
                                 }
                             }
                             thisDownload && download.status == ModelDownloadStatus.DOWNLOADING -> {
                                 IconButton(onClick = onPause) {
-                                    Icon(Icons.Default.Close, contentDescription = "Pausar download")
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.pause_download))
                                 }
                             }
                             thisDownload && download.status in setOf(
                                 ModelDownloadStatus.PAUSED,
                                 ModelDownloadStatus.ERROR,
                             ) -> {
-                                Button(onClick = onResume, shape = CircleShape) { Text("Retomar") }
+                                Button(onClick = onResume, shape = CircleShape) { Text(stringResource(R.string.resume)) }
                             }
                             else -> {
                                 Button(
@@ -1531,7 +1548,7 @@ private fun SpeechModelManagement(
                                 ) {
                                     Icon(Icons.Default.Download, contentDescription = null, Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Transferir")
+                                    Text(stringResource(R.string.download_voice))
                                 }
                             }
                         }
@@ -1629,9 +1646,10 @@ private fun SettingsStorage(onBack: () -> Unit) {
                 )
             }
             Text(
-                "MEMÓRIA & DADOS",
+                stringResource(R.string.memory_header),
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { heading() },
             )
         }
 
@@ -1781,26 +1799,26 @@ private fun SettingsStorage(onBack: () -> Unit) {
                 // Breakdown list
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     StorageStatRow(
-                        label = "Espaço total ocupado pela app",
+                        label = stringResource(R.string.storage_total),
                         value = "${String.format(Locale.US, "%.1f", totalMb)} MB",
                         isHighlight = true
                     )
                     StorageStatRow(
-                        label = "Dados de vozes instaladas (TTS)",
+                        label = stringResource(R.string.storage_voices),
                         value = "${String.format(Locale.US, "%.1f", voiceMb)} MB"
                     )
                     if (speechBytes > 0) {
                         StorageStatRow(
-                            label = "Modelo de transcrição (Whisper STT)",
+                            label = stringResource(R.string.storage_speech_model),
                             value = "${String.format(Locale.US, "%.1f", speechMb)} MB"
                         )
                     }
                     StorageStatRow(
-                        label = "Textos guardados no histórico",
+                        label = stringResource(R.string.storage_history),
                         value = "${String.format(Locale.US, "%.2f", historyMb)} MB"
                     )
                     StorageStatRow(
-                        label = "Memória Cache temporária",
+                        label = stringResource(R.string.storage_cache),
                         value = "${String.format(Locale.US, "%.1f", cacheMb)} MB"
                     )
                 }
@@ -1832,27 +1850,33 @@ private fun SettingsStorage(onBack: () -> Unit) {
                         modifier = Modifier.size(22.dp)
                     )
                     Text(
-                        "Ações de Limpeza",
+                        stringResource(R.string.cleanup_actions),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
 
                 // Action 1: Delete downloaded voices
                 StorageActionItem(
-                    title = "Eliminar vozes transferidas (TTS)",
-                    subtitle = "Libertará ${String.format(Locale.US, "%.0f", voiceMb)} MB de ficheiros descarregados",
+                    title = stringResource(R.string.delete_downloaded_voices),
+                    subtitle = stringResource(
+                        R.string.cleanup_voices_sub,
+                        String.format(Locale.US, "%.0f", voiceMb),
+                    ),
                     subtitleColor = MaterialTheme.colorScheme.error,
-                    buttonText = "Eliminar",
+                    buttonText = stringResource(R.string.delete_entry),
                     isDestructive = true,
                     onClick = { showClearVoicesDialog = true }
                 )
 
                 if (speechBytes > 0) {
                     StorageActionItem(
-                        title = "Eliminar modelo de transcrição (STT)",
-                        subtitle = "Libertará ${String.format(Locale.US, "%.0f", speechMb)} MB do modelo Whisper",
+                        title = stringResource(R.string.cleanup_delete_speech_title),
+                        subtitle = stringResource(
+                            R.string.cleanup_delete_speech_sub,
+                            String.format(Locale.US, "%.0f", speechMb),
+                        ),
                         subtitleColor = MaterialTheme.colorScheme.error,
-                        buttonText = "Eliminar",
+                        buttonText = stringResource(R.string.delete_entry),
                         isDestructive = true,
                         onClick = { showClearSpeechDialog = true }
                     )
@@ -1860,26 +1884,26 @@ private fun SettingsStorage(onBack: () -> Unit) {
 
                 // Action 2: Delete saved texts (preserves favorites!)
                 StorageActionItem(
-                    title = "Eliminar textos salvos",
-                    subtitle = "Limpa o histórico local mantendo os favoritos",
+                    title = stringResource(R.string.delete_saved_texts),
+                    subtitle = stringResource(R.string.cleanup_history_sub),
                     subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    buttonText = "Limpar",
+                    buttonText = stringResource(R.string.clear_text),
                     isDestructive = false,
                     onClick = { showClearHistoryDialog = true }
                 )
 
                 // Action 3: Delete cache
                 StorageActionItem(
-                    title = "Eliminar cache",
-                    subtitle = "Ficheiros temporários e áudios renderizados",
+                    title = stringResource(R.string.delete_cache),
+                    subtitle = stringResource(R.string.cleanup_cache_sub),
                     subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    buttonText = "Ação Imediata",
+                    buttonText = stringResource(R.string.action_immediate),
                     isPrimary = true,
                     onClick = {
                         ReaderAudioCache.clear()
                         context.cacheDir.deleteRecursively()
                         recalculateSizes()
-                        Toast.makeText(context, "Cache de áudio limpa", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, R.string.audio_cache_cleared, Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -1997,9 +2021,14 @@ private fun SettingsStorage(onBack: () -> Unit) {
         if (showClearVoicesDialog) {
             AlertDialog(
                 onDismissRequest = { showClearVoicesDialog = false },
-                title = { Text("Eliminar vozes transferidas?") },
+                title = { Text(stringResource(R.string.delete_voices_question)) },
                 text = {
-                    Text("Todas as vozes adicionais descarregadas serão removidas (${String.format(Locale.US, "%.0f", voiceMb)} MB). A voz padrão embutida permanecerá disponível.")
+                    Text(
+                        stringResource(
+                            R.string.delete_voices_body,
+                            String.format(Locale.US, "%.0f", voiceMb),
+                        )
+                    )
                 },
                 confirmButton = {
                     TextButton(
@@ -2016,7 +2045,7 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             Toast.makeText(context, "Vozes transferidas eliminadas", Toast.LENGTH_SHORT).show()
                         }
                     ) {
-                        Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
@@ -2040,11 +2069,11 @@ private fun SettingsStorage(onBack: () -> Unit) {
                                 ReadingHistory.clearNonFavorites()
                                 recalculateSizes()
                                 showClearHistoryDialog = false
-                                Toast.makeText(context, "Histórico limpo (favoritos mantidos)", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, R.string.history_cleared, Toast.LENGTH_SHORT).show()
                             }
                         }
                     ) {
-                        Text("Limpar", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.clear_text), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {
@@ -2059,9 +2088,14 @@ private fun SettingsStorage(onBack: () -> Unit) {
         if (showClearSpeechDialog) {
             AlertDialog(
                 onDismissRequest = { showClearSpeechDialog = false },
-                title = { Text("Eliminar modelo de transcrição?") },
+                title = { Text(stringResource(R.string.delete_model_question)) },
                 text = {
-                    Text("O modelo de transcrição Whisper (${String.format(Locale.US, "%.0f", speechMb)} MB) será removido do dispositivo. Poderá voltar a descarregá-lo quando quiser.")
+                    Text(
+                        stringResource(
+                            R.string.delete_model_body,
+                            String.format(Locale.US, "%.0f", speechMb),
+                        )
+                    )
                 },
                 confirmButton = {
                     TextButton(
@@ -2069,10 +2103,10 @@ private fun SettingsStorage(onBack: () -> Unit) {
                             SpeechToTextState.deleteAllModels(context)
                             recalculateSizes()
                             showClearSpeechDialog = false
-                            Toast.makeText(context, "Modelo de transcrição eliminado", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.speech_model_deleted, Toast.LENGTH_SHORT).show()
                         }
                     ) {
-                        Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 dismissButton = {

@@ -255,7 +255,7 @@ fun StitchStatusVoiceBar(
         color = colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Voz e ritmo", style = MaterialTheme.typography.titleMedium,
+            Text(stringResource(R.string.voice_rhythm_title), style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold)
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -271,15 +271,24 @@ fun StitchStatusVoiceBar(
                     Column(Modifier.weight(1f)) {
                         Text(activeName, style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Text(if (onlineReading) "ElevenLabs · online" else "No dispositivo · offline",
+                        Text(
+                            if (onlineReading) {
+                                stringResource(R.string.elevenlabs_online)
+                            } else {
+                                stringResource(R.string.voices_on_device_offline)
+                            },
                             style = MaterialTheme.typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant)
+                            color = colorScheme.onSurfaceVariant
+                        )
                     }
-                    Icon(Icons.Default.ExpandMore, contentDescription = "Escolher voz")
+                    Icon(
+                        Icons.Default.ExpandMore,
+                        contentDescription = stringResource(R.string.choose_voice_action),
+                    )
                 }
             }
             if (showSpeed) {
-                Text("Velocidade de leitura", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.reading_speed), style = MaterialTheme.typography.labelLarge)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -304,11 +313,11 @@ fun StitchStatusVoiceBar(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Escolher voz", style = MaterialTheme.typography.titleLarge,
+            Text(stringResource(R.string.choose_voice_action), style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold)
             PrimaryTabRow(selectedTabIndex = if (source == "online" && onlineAvailable) 1 else 0) {
                 Tab(selected = source == "local", onClick = { source = "local" },
-                    text = { Text("No dispositivo") })
+                    text = { Text(stringResource(R.string.voices_on_device)) })
                 if (onlineAvailable) Tab(selected = source == "online", onClick = { source = "online" },
                     text = { Text("ElevenLabs") })
             }
@@ -317,7 +326,7 @@ fun StitchStatusVoiceBar(
                 onValueChange = { search = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Pesquisar voz") },
+                label = { Text(stringResource(R.string.search_voice)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             )
             val listHeight = minOf(480.dp, LocalConfiguration.current.screenHeightDp.dp * 0.55f)
@@ -338,10 +347,13 @@ fun StitchStatusVoiceBar(
                             supportingContent = {
                                 Text(
                                     when {
-                                        installed -> "Disponível no dispositivo"
-                                        isDownloading -> "A transferir…"
-                                        isQueued -> "Na fila · ${queueIndex + 1}.º"
-                                        else -> "Transferir voz"
+                                        installed -> stringResource(R.string.voice_available_on_device)
+                                        isDownloading -> stringResource(R.string.voice_transferring)
+                                        isQueued -> stringResource(
+                                            R.string.voice_download_queued_position,
+                                            queueIndex + 1,
+                                        )
+                                        else -> stringResource(R.string.download_voice_action)
                                     },
                                 )
                             },
@@ -350,10 +362,13 @@ fun StitchStatusVoiceBar(
                                     isDownloading -> CircularProgressIndicator(Modifier.size(20.dp))
                                     isQueued -> Icon(
                                         Icons.Default.Schedule,
-                                        contentDescription = "Na fila",
+                                        contentDescription = stringResource(R.string.voice_download_queued),
                                     )
                                     snapshot.voiceId == voice.id && !onlineReading ->
-                                        Icon(Icons.Default.Check, contentDescription = "Selecionada")
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = stringResource(R.string.voice_selected),
+                                        )
                                 }
                             },
                             modifier = Modifier.clickable(enabled = canSelect) {
@@ -373,7 +388,7 @@ fun StitchStatusVoiceBar(
                         )
                     }
                     if (matches.isEmpty()) item {
-                        Text("Sem vozes correspondentes.", Modifier.padding(16.dp),
+                        Text(stringResource(R.string.no_matching_voices), Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium)
                     }
                 } else {
@@ -383,10 +398,13 @@ fun StitchStatusVoiceBar(
                     items(onlineVoices, key = { it.id }) { voice ->
                         ListItem(
                             headlineContent = { Text(voice.name, maxLines = 2) },
-                            supportingContent = { Text("ElevenLabs · online") },
+                            supportingContent = { Text(stringResource(R.string.elevenlabs_online)) },
                             trailingContent = {
                                 if (onlineVoiceId == voice.id && onlineReading)
-                                    Icon(Icons.Default.Check, contentDescription = "Selecionada")
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = stringResource(R.string.voice_selected),
+                                    )
                             },
                             modifier = Modifier.clickable {
                                 ElevenLabsAuth.selectVoice(context, voice.id, voice.name)
@@ -397,7 +415,7 @@ fun StitchStatusVoiceBar(
                         )
                     }
                     if (!onlineLoading && onlineVoices.isEmpty()) item {
-                        Text("Sem vozes online disponíveis.", Modifier.padding(16.dp),
+                        Text(stringResource(R.string.no_online_voices), Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyMedium)
                     }
                 }

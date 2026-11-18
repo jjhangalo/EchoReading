@@ -770,12 +770,70 @@ architecture unless a task explicitly says otherwise.
 - Limitation: the remaining screens still contain hardcoded Portuguese strings;
   extraction and a second locale continue in R23.
 
+### R23. i18n extraction and an English locale
+
+- Status: `[x]` (implementation, JVM verification, and lint complete; on-device
+  locale switch and TalkBack walkthrough still pending)
+- Files: `app/src/main/res/values/strings.xml`,
+  `app/src/main/res/values-en/strings.xml` (new),
+  `app/src/main/java/com/echoreading/HistoryScreen.kt`,
+  `app/src/main/java/com/echoreading/SettingsScreen.kt`,
+  `app/src/main/java/com/echoreading/VoiceDiscoveryScreen.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppBar.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppAudioCard.kt`,
+  `app/src/main/java/com/echoreading/ui/component/AppTextCard.kt`,
+  `app/src/main/java/com/echoreading/ui/component/ElevenLabsSettingsSection.kt`,
+  `app/src/main/java/com/echoreading/ui/screen/HomeScreen.kt`,
+  `app/src/main/java/com/echoreading/ui/screen/SpeechToTextScreen.kt`,
+  `docs/REMEDIATION.md`
+- Problem: every screen mixed `strings.xml` lookups with inline Portuguese
+  literals, so the app could not be translated at all; the history timestamp
+  formatter was pinned to `Locale("pt", "PT")` with a hardcoded `d 'de' MMMM`
+  pattern, which produced Portuguese dates regardless of the device locale.
+- Change: all user-visible Compose copy now comes from resources — transport,
+  voice picker, history (chips, counts, empty state, badges, date filter),
+  settings (badges, section headers, storage rows, cleanup actions and
+  confirmation dialogs), voice discovery (catalogue states, quality pills,
+  download toasts) and the ElevenLabs section. `values-en` mirrors all 279 keys
+  with English copy. `formatTimestamp` now takes a `Context` and uses
+  `getString` for "today/yesterday" plus `DateFormat.getDateInstance(LONG)`
+  for other days, so dates follow the device locale. Strings read inside
+  callbacks go through `LocalResources.current` (or are hoisted with
+  `stringResource`) to keep lint's configuration-awareness rule satisfied.
+  Card titles and static section headers carry `heading()` semantics so
+  TalkBack can jump between sections.
+- Acceptance: no user-visible Compose string literal remains; the English
+  locale covers every key with matching format specifiers; Portuguese output is
+  unchanged.
+- Verification: `./gradlew :app:testDebugUnitTest :app:lintDebug` passed with
+  578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors. A
+  scripted parity check confirmed 279 keys in both files, no missing or extra
+  keys, and identical format specifiers per key.
+- Limitation: error strings produced inside services and repositories
+  (`ReaderPlaybackService`, `SpeechProcessingService`, `ElevenLabsMcp`,
+  `OfflineSpeech`, `AudioDecoder`) are still hardcoded Portuguese. They surface
+  through `errorState`/toasts, so translating them needs a `Context` plumbed
+  into those layers — a separate change (see R24).
+
+### R24. Translate service-layer error messages
+
+- Status: `[ ]`
+- Problem: R23 covers Compose copy only. Errors raised in services reach the UI
+  verbatim (`ReaderState.error`, transcription failures, ElevenLabs auth
+  failures), so an English-locale user still sees Portuguese error text.
+- Plan: replace the literal messages with resource IDs or typed error enums in
+  the service layer, and resolve them in the UI with `stringResource`. Start
+  with the user-triggered paths (`ReaderPlaybackService` ElevenLabs limit and
+  voice failure, `SpeechProcessingService.readableError`) and leave the
+  `require`/`check` contract messages as developer-facing English.
+
 ## Verification log
 
 Add newest entries at the top. Include command, result, and which item it covers.
 
 | Date | Command | Result | Item |
 |---|---|---|---|
+| 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (4 `LocalContextGetResourceValueCall` errors found and fixed) | R23 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R22 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors | R21 |
 | 2026-11-18 | `./gradlew :app:testDebugUnitTest :app:lintDebug --console=plain` | `BUILD SUCCESSFUL`; 578 tests, 0 failures, 0 errors, 1 skipped (34 suites); lint 0 errors (no new test needed: transitions are declarative and covered by the existing navigation smoke suite on a device) | R20 |

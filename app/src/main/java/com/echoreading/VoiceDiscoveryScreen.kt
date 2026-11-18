@@ -146,7 +146,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                 isLoading = false
                 isRefreshing = false
             }.onFailure {
-                error = it.message ?: "Falha ao carregar o catálogo de vozes"
+                error = it.message ?: resources.getString(R.string.voice_catalog_load_error)
                 isLoading = false
                 isRefreshing = false
             }
@@ -163,13 +163,19 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                 installedVersion++
                 Toast.makeText(
                     context,
-                    "Voz ${completion.label.replaceFirstChar { it.uppercase() }} transferida com sucesso!",
+                    resources.getString(
+                        R.string.voice_downloaded_success,
+                        completion.label.replaceFirstChar { it.uppercase() },
+                    ),
                     Toast.LENGTH_SHORT,
                 ).show()
             } else {
                 Toast.makeText(
                     context,
-                    "Erro ao transferir voz: ${completion.error ?: "Falha na transferência"}",
+                    resources.getString(
+                        R.string.voice_download_error,
+                        completion.error ?: resources.getString(R.string.download_failed_generic),
+                    ),
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -288,7 +294,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                 } else {
                     Icon(
                         Icons.Default.Refresh,
-                        contentDescription = "Atualizar catálogo",
+                        contentDescription = stringResource(R.string.refresh_catalog),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -310,7 +316,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
         if (showLanguageFilter) {
             AlertDialog(
                 onDismissRequest = { showLanguageFilter = false },
-                title = { Text("Selecionar idioma") },
+                title = { Text(stringResource(R.string.select_language)) },
                 text = {
                     LazyColumn(Modifier.heightIn(max = 420.dp)) {
                         items(families, key = { it.first }) { (code, name, count) ->
@@ -326,7 +332,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                                 if (selectedFamily == code) {
                                     Icon(
                                         Icons.Default.CheckCircle,
-                                        contentDescription = "Selecionado",
+                                        contentDescription = stringResource(R.string.voice_selected),
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -338,7 +344,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showLanguageFilter = false }) { Text("Fechar") }
+                    TextButton(onClick = { showLanguageFilter = false }) { Text(stringResource(R.string.close_panel)) }
                 }
             )
         }
@@ -360,7 +366,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                     ) {
                         CircularProgressIndicator()
                         Text(
-                            "A carregar catálogo de vozes…",
+                            stringResource(R.string.voice_catalog_loading),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -395,12 +401,12 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                                 tint = MaterialTheme.colorScheme.error
                             )
                             Text(
-                                "Não foi possível carregar o catálogo",
+                                stringResource(R.string.voice_catalog_failed_title),
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Text(
-                                "Verifique a ligação à internet e tente novamente.",
+                                stringResource(R.string.voice_catalog_failed_body),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -413,7 +419,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Tentar novamente")
+                                Text(stringResource(R.string.retry))
                             }
                         }
                     }
@@ -454,7 +460,7 @@ fun VoiceDiscoveryScreen(onBack: () -> Unit) {
                                     selectedFamily = "pt"
                                 }
                             ) {
-                                Text("Limpar filtros")
+                                Text(stringResource(R.string.clear_filters))
                             }
                         }
                     }
@@ -582,19 +588,19 @@ private fun ElevatedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Pesquisar vozes", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            placeholder = { Text(stringResource(R.string.search_voices), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (value.isNotEmpty()) {
                         IconButton(onClick = onClear) {
-                            Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_search))
                         }
                     }
                     IconButton(onClick = onFilter, enabled = filterEnabled) {
                         Icon(
                             Icons.Default.FilterList,
-                            contentDescription = "Filtrar idioma. Atual: $languageName",
+                            contentDescription = stringResource(R.string.filter_language_current, languageName),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -679,7 +685,7 @@ private fun VoiceDiscoveryCard(
                         IconButton(onClick = onCancel, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Cancelar download",
+                                contentDescription = stringResource(R.string.voice_download_cancel_active),
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -785,7 +791,7 @@ private fun VoiceDiscoveryCard(
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text("Descarregar", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.download_voice), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -828,10 +834,10 @@ private fun VoiceDiscoveryCard(
             ) {
                 // Quality pill
                 val qualityLabel = when (voice.quality.lowercase()) {
-                    "high" -> "Alta qualidade"
-                    "medium" -> "Média qualidade"
-                    "low" -> "Qualidade leve"
-                    "x_low" -> "Qualidade ultraleve"
+                    "high" -> stringResource(R.string.quality_high)
+                    "medium" -> stringResource(R.string.quality_medium)
+                    "low" -> stringResource(R.string.quality_low)
+                    "x_low" -> stringResource(R.string.quality_x_low)
                     else -> voice.quality.replaceFirstChar { it.uppercase() }
                 }
                 Surface(

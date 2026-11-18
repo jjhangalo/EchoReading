@@ -95,6 +95,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -194,7 +195,7 @@ fun HistoryScreen() {
                             onValueChange = { searchFlow.value = it },
                             placeholder = {
                                 Text(
-                                    "Procurar nos textos gravados...",
+                                    stringResource(R.string.search_hint),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -210,7 +211,7 @@ fun HistoryScreen() {
                         )
                         if (searchText.isNotBlank()) {
                             IconButton(onClick = { searchFlow.value = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Limpar", Modifier.size(18.dp))
+                                Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.clear_search), Modifier.size(18.dp))
                             }
                         }
                     }
@@ -248,10 +249,10 @@ fun HistoryScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val chips = listOf(
-                        Triple("all", "Todos", Icons.Default.ViewHeadline),
-                        Triple("short", "Curtos", Icons.Default.AccessTime),
-                        Triple("long", "Longos", Icons.AutoMirrored.Filled.MenuBook),
-                        Triple("favorites", "Favoritos", Icons.Default.Bookmark),
+                        Triple("all", stringResource(R.string.filter_all), Icons.Default.ViewHeadline),
+                        Triple("short", stringResource(R.string.filter_short), Icons.Default.AccessTime),
+                        Triple("long", stringResource(R.string.filter_long), Icons.AutoMirrored.Filled.MenuBook),
+                        Triple("favorites", stringResource(R.string.filter_favorites), Icons.Default.Bookmark),
                     )
 
                     chips.forEach { (key, label, icon) ->
@@ -299,9 +300,9 @@ fun HistoryScreen() {
                         )
                         Text(
                             if (searchQuery.isNotBlank() || activeFilter != "all" || dateFrom != null) {
-                                "$matchingCount de $totalCount textos encontrados"
+                                stringResource(R.string.history_count_filtered, matchingCount, totalCount)
                             } else {
-                                "$totalCount textos gravados localmente"
+                                stringResource(R.string.history_count, totalCount)
                             },
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -328,7 +329,7 @@ fun HistoryScreen() {
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "Nenhum texto encontrado",
+                                stringResource(R.string.empty_history),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -359,7 +360,7 @@ fun HistoryScreen() {
                         onCopy = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("text", entry.text))
-                            Toast.makeText(context, "Texto copiado para a área de transferência", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.text_copied, Toast.LENGTH_SHORT).show()
                         },
                     )
                 }
@@ -393,7 +394,7 @@ fun HistoryScreen() {
                     ) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Limpar Todo o Histórico")
+                        Text(stringResource(R.string.clear_history))
                     }
                 }
             }
@@ -407,8 +408,8 @@ fun HistoryScreen() {
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Limpar histórico?") },
-            text = { Text("Todos os textos serão eliminados, excepto os mantidos como favoritos.") },
+            title = { Text(stringResource(R.string.clear_confirm_title)) },
+            text = { Text(stringResource(R.string.clear_confirm_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -419,11 +420,11 @@ fun HistoryScreen() {
                         showClearDialog = false
                     }
                 ) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("Cancelar") }
+                TextButton(onClick = { showClearDialog = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -439,6 +440,7 @@ private fun StitchHistoryCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -470,7 +472,7 @@ private fun StitchHistoryCard(
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        formatTimestamp(entry.timestamp),
+                        formatTimestamp(entry.timestamp, context),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -482,7 +484,7 @@ private fun StitchHistoryCard(
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                         ) {
                             Text(
-                                "Guardado",
+                                stringResource(R.string.history_saved_badge),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -499,7 +501,7 @@ private fun StitchHistoryCard(
                         onClick = { menuExpanded = true },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Opções", Modifier.size(20.dp))
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options), Modifier.size(20.dp))
                     }
                     DropdownMenu(
                         expanded = menuExpanded,
@@ -507,7 +509,7 @@ private fun StitchHistoryCard(
                     ) {
                         DropdownMenuItem(
                             text = {
-                                Text(if (entry.isFavorite) "Remover dos favoritos" else "Manter guardado")
+                                Text(if (entry.isFavorite) stringResource(R.string.remove_favorite) else stringResource(R.string.keep_saved))
                             },
                             leadingIcon = {
                                 Icon(
@@ -522,7 +524,7 @@ private fun StitchHistoryCard(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Copiar texto") },
+                            text = { Text(stringResource(R.string.copy_text)) },
                             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                             onClick = {
                                 menuExpanded = false
@@ -530,7 +532,7 @@ private fun StitchHistoryCard(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Eliminar", color = MaterialTheme.colorScheme.error) },
+                            text = { Text(stringResource(R.string.delete_entry), color = MaterialTheme.colorScheme.error) },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                             onClick = {
                                 menuExpanded = false
@@ -552,7 +554,7 @@ private fun StitchHistoryCard(
                 )
                 if (entry.text.length > 120) {
                     Text(
-                        if (expanded) "Ver menos" else "Ver mais",
+                        stringResource(if (expanded) R.string.see_less else R.string.see_more),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp)
@@ -573,7 +575,7 @@ private fun StitchHistoryCard(
                 )
                 val estSec = (entry.wordCount / 2.5).toInt()
                 Text(
-                    "${entry.wordCount} palavras • ~${estSec}s",
+                    stringResource(R.string.history_item_stats, entry.wordCount, estSec),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -592,7 +594,7 @@ private fun StitchHistoryCard(
             ) {
                 Icon(Icons.Default.PlayCircle, contentDescription = null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Carregar no Leitor", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.load_to_reader), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -657,14 +659,14 @@ private fun StitchDateFilterCard(
                     }
                     Column {
                         Text(
-                            "Filtrar por data",
+                            stringResource(R.string.date_filter_title),
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             if (dateFrom != null) {
                                 "${formatDisplayDate(dateFrom)}${if (dateTo != null && dateTo != dateFrom + 86_400_000 - 1) " - " + formatDisplayDate(dateTo) else ""}"
-                            } else "Dia único ou intervalo",
+                            } else stringResource(R.string.date_mode_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (dateFrom != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -690,7 +692,7 @@ private fun StitchDateFilterCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Modo de seleção",
+                            stringResource(R.string.date_selection_mode),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -711,7 +713,7 @@ private fun StitchDateFilterCard(
                                     }
                                 ) {
                                     Text(
-                                        "Dia único",
+                                        stringResource(R.string.date_mode_single),
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -725,7 +727,7 @@ private fun StitchDateFilterCard(
                                     modifier = Modifier.clickable { onDateModeChange("range") }
                                 ) {
                                     Text(
-                                        "Intervalo",
+                                        stringResource(R.string.date_mode_range),
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -749,7 +751,9 @@ private fun StitchDateFilterCard(
                             ) {
                                 Icon(Icons.Default.Event, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
                                 Text(
-                                    dateFrom?.let { formatDisplayDate(it) } ?: if (dateMode == "single") "Selecionar data" else "Data de início",
+                                    dateFrom?.let { formatDisplayDate(it) } ?: stringResource(
+                                        if (dateMode == "single") R.string.date_select_day else R.string.date_start
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -770,7 +774,7 @@ private fun StitchDateFilterCard(
                             ) {
                                 Icon(Icons.Default.CalendarToday, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
                                 Text(
-                                    dateTo?.let { formatDisplayDate(it) } ?: "Data de fim",
+                                    dateTo?.let { formatDisplayDate(it) } ?: stringResource(R.string.date_end),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -796,7 +800,7 @@ private fun StitchDateFilterCard(
                             }
                         ) {
                             Text(
-                                "Hoje",
+                                stringResource(R.string.date_today),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -804,7 +808,7 @@ private fun StitchDateFilterCard(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = onClear) { Text("Limpar") }
+                            TextButton(onClick = onClear) { Text(stringResource(R.string.clear_filter)) }
                             Button(
                                 onClick = {
                                     if (dateMode == "single" && dateFrom != null) {
@@ -818,7 +822,7 @@ private fun StitchDateFilterCard(
                                     contentColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             ) {
-                                Text("Aplicar")
+                                Text(stringResource(R.string.apply_filter))
                             }
                         }
                     }
@@ -837,10 +841,10 @@ private fun StitchDateFilterCard(
                         state.selectedDateMillis?.let { onDateFromChange(it) }
                         showFromPicker = false
                     }
-                ) { Text("OK") }
+                ) { Text(stringResource(android.R.string.ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showFromPicker = false }) { Text("Cancelar") }
+                TextButton(onClick = { showFromPicker = false }) { Text(stringResource(R.string.cancel)) }
             }
         ) { DatePicker(state = state) }
     }
@@ -855,28 +859,25 @@ private fun StitchDateFilterCard(
                         state.selectedDateMillis?.let { onDateToChange(it + 86_400_000 - 1) }
                         showToPicker = false
                     }
-                ) { Text("OK") }
+                ) { Text(stringResource(android.R.string.ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showToPicker = false }) { Text("Cancelar") }
+                TextButton(onClick = { showToPicker = false }) { Text(stringResource(R.string.cancel)) }
             }
         ) { DatePicker(state = state) }
     }
 }
 
-private fun formatTimestamp(millis: Long): String {
+private fun formatTimestamp(millis: Long, context: Context): String {
     val cal = Calendar.getInstance().apply { timeInMillis = millis }
     val today = Calendar.getInstance()
     val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
     val time = String.format(Locale.getDefault(), "%02d:%02d",
         cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
     return when {
-        isSameDay(cal, today) -> "Hoje, às $time"
-        isSameDay(cal, yesterday) -> "Ontem, às $time"
-        else -> {
-            val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy", Locale("pt", "PT"))
-            fmt.format(Date(millis))
-        }
+        isSameDay(cal, today) -> context.getString(R.string.history_today_at, time)
+        isSameDay(cal, yesterday) -> context.getString(R.string.history_yesterday_at, time)
+        else -> DateFormat.getDateInstance(DateFormat.LONG).format(Date(millis))
     }
 }
 
