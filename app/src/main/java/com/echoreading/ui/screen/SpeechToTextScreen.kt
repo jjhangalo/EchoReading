@@ -252,7 +252,7 @@ fun SpeechToTexScreen(
                             downloading = download.status == ModelDownloadStatus.DOWNLOADING,
                             progress = download.progress,
                             onDownload = {
-                                SpeechToTextState.downloadModel(ctx, OfflineSpeech.DEFAULT_MODEL_ID)
+                                SpeechToTextState.downloadModel(ctx, OfflineSpeech.recommendedModelId(ctx))
                             },
                         )
                     }
@@ -328,6 +328,7 @@ private fun TranscriptionModelSheet(
 ) {
     val context = LocalContext.current
     val anotherDownloadActive = download.status == ModelDownloadStatus.DOWNLOADING
+    val recommendedId = OfflineSpeech.recommendedModelId(context)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -369,7 +370,7 @@ private fun TranscriptionModelSheet(
                         ListItem(
                             headlineContent = {
                                 Text(
-                                    model.label + if (model.recommended) {
+                                    model.label + if (model.id == recommendedId) {
                                         " · Recomendado"
                                     } else {
                                         ""
@@ -380,6 +381,11 @@ private fun TranscriptionModelSheet(
                             },
                             supportingContent = {
                                 Column {
+                                    Text(
+                                        model.advantage,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                     Text(
                                         if (installed) {
                                             "Instalado · ${

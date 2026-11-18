@@ -1422,6 +1422,7 @@ private fun SpeechModelManagement(
     onDelete: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val recommendedId = OfflineSpeech.recommendedModelId(context)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -1474,8 +1475,13 @@ private fun SpeechModelManagement(
                         )
                         Column(Modifier.weight(1f)) {
                             Text(
-                                model.label + if (model.recommended) " · Recomendado" else "",
+                                model.label + if (model.id == recommendedId) " · Recomendado" else "",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                            Text(
+                                model.advantage,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(
                                 if (installed) {

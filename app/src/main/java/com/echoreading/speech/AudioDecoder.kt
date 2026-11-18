@@ -13,6 +13,7 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -23,6 +24,12 @@ object AudioDecoder {
     const val MAX_DURATION_MS = 30L * 60L * 1000L
     const val CHUNK_SAMPLES = 30 * SAMPLE_RATE
     private const val MAX_SAMPLES = SAMPLE_RATE.toLong() * 30L * 60L
+
+    // Parakeet v3: blocos de 12-20 s cortados em pausas degrada menos a pontuação e
+    // usa menos RAM do que janelas fixas (documentação do modelo no sherpa-onnx).
+    private const val PARAKEET_MIN_CHUNK = 12L * SAMPLE_RATE
+    private const val PARAKEET_MAX_CHUNK = 20L * SAMPLE_RATE
+    private const val SILENCE_FRAME_SAMPLES = SAMPLE_RATE / 10
 
     data class DecodedAudio(
         val pcmFile: File,
@@ -149,11 +156,86 @@ object AudioDecoder {
         }
     }
 
-    suspend fun readChunk(file: File, chunkIndex: Int): FloatArray = withContext(Dispatchers.IO) {
-        val offsetSamples = chunkIndex.toLong() * CHUNK_SAMPLES
+    /**
+     * Delimita os blocos de transcrição: [0, b1, ..., totalSamples]. O Whisper usa
+     * janelas fixas de 30 s (padrão do modelo); o Parakeet corta no quadro mais
+     * silencioso de uma janela de 12-20 s e, sem pausa disponível, aos 20 s.
+     * Determinístico, para o checkpoint retomar no bloco certo.
+     */
+    suspend fun chunkBoundaries(pcmFile: File, engine: SpeechEngine): List<Long> =
+        withContext(Dispatchers.IO) {
+            val totalSamples = pcmFile.length() / 2L
+            val boundaries = mutableListOf(0L)
+            if (engine == SpeechEngine.WHISPER || totalSamples <= PARAKEET_MAX_CHUNK) {
+                var offset = 0L
+                while (offset < totalSamples) {
+                    offset = minOf(offset + CHUNK_SAMPLES, totalSamples)
+                    boundaries.add(offset)
+                }
+                return@withContext boundaries
+            }
+            val rms = frameRms(pcmFile, totalSamples)
+            var start = 0L
+            while (totalSamples - start > PARAKEET_MAX_CHUNK) {
+                val cut = quietestCut(rms, start + PARAKEET_MIN_CHUNK, start + PARAKEET_MAX_CHUNK)
+                boundaries.add(cut)
+                start = cut
+            }
+            boundaries.add(totalSamples)
+            boundaries
+        }
+
+    private fun frameRms(pcmFile: File, totalSamples: Long): FloatArray {
+        val frames = ((totalSamples + SILENCE_FRAME_SAMPLES - 1) / SILENCE_FRAME_SAMPLES).toInt()
+        val rms = FloatArray(frames)
+        val bytes = ByteArray(64 * 1024)
+        var frame = 0
+        var count = 0
+        var sumSquares = 0.0
+        pcmFile.inputStream().buffered().use { input ->
+            while (frame < frames) {
+                val read = input.read(bytes)
+                if (read < 0) break
+                var index = 0
+                while (index + 1 < read && frame < frames) {
+                    val value = ((bytes[index].toInt() and 0xff) or (bytes[index + 1].toInt() shl 8))
+                        .toShort() / 32768f
+                    sumSquares += (value * value).toDouble()
+                    if (++count == SILENCE_FRAME_SAMPLES) {
+                        rms[frame++] = kotlin.math.sqrt(sumSquares / count).toFloat()
+                        count = 0
+                        sumSquares = 0.0
+                    }
+                    index += 2
+                }
+            }
+        }
+        return rms
+    }
+
+    /** Centro do quadro mais silencioso dentro de [lo, hi]; sem quadros, devolve hi. */
+    private fun quietestCut(frameRms: FloatArray, lo: Long, hi: Long): Long {
+        val loFrame = (lo / SILENCE_FRAME_SAMPLES).toInt()
+        val hiFrame = (hi / SILENCE_FRAME_SAMPLES).toInt().coerceAtMost(frameRms.size - 1)
+        if (loFrame > hiFrame) return hi
+        var quietest = loFrame
+        for (frame in loFrame..hiFrame) {
+            if (frameRms[frame] < frameRms[quietest]) quietest = frame
+        }
+        return (quietest.toLong() * SILENCE_FRAME_SAMPLES + SILENCE_FRAME_SAMPLES / 2)
+            .coerceIn(lo, hi)
+    }
+
+    suspend fun readChunk(
+        file: File,
+        boundaries: List<Long>,
+        chunkIndex: Int,
+        normalizeGain: Boolean = false,
+    ): FloatArray = withContext(Dispatchers.IO) {
+        val offsetSamples = boundaries[chunkIndex]
+        val count = (boundaries[chunkIndex + 1] - offsetSamples).toInt()
         val offsetBytes = offsetSamples * 2L
-        if (offsetBytes >= file.length()) return@withContext FloatArray(0)
-        val count = minOf(CHUNK_SAMPLES.toLong(), (file.length() - offsetBytes) / 2L).toInt()
+        if (count <= 0 || offsetBytes >= file.length()) return@withContext FloatArray(0)
         val result = FloatArray(count)
         RandomAccessFile(file, "r").use { input ->
             input.seek(offsetBytes)
@@ -166,7 +248,21 @@ object AudioDecoder {
                 byteIndex += 2
             }
         }
+        if (normalizeGain) normalizeGainUp(result)
         result
+    }
+
+    /**
+     * Amplifica apenas trechos muito baixos: o frontend do Parakeet perde precisão
+     * com entrada fraca (k2-fsa/sherpa-onnx#4024). Nunca reduz o ganho.
+     */
+    private fun normalizeGainUp(samples: FloatArray) {
+        var peak = 0f
+        for (value in samples) peak = maxOf(peak, abs(value))
+        if (peak in 0.0005f..0.5f) {
+            val gain = 0.9f / peak
+            for (index in samples.indices) samples[index] *= gain
+        }
     }
 
     private class PcmNormalizer(format: MediaFormat, private val output: BufferedOutputStream) {

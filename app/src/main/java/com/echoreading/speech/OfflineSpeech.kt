@@ -1,9 +1,11 @@
 package com.echoreading.speech
 
+import android.app.ActivityManager
 import android.content.Context
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
+import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
 import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import java.io.File
 import java.io.IOException
@@ -22,15 +24,18 @@ data class SpeechModelFile(
     val sha256: String,
 )
 
+enum class SpeechEngine { WHISPER, NEMO_TRANSDUCER }
+
 data class SpeechModelOption(
     val id: String,
     val label: String,
     val revision: String,
     val files: List<SpeechModelFile>,
-    val recommended: Boolean = false,
+    val engine: SpeechEngine,
+    val advantage: String,
+    val repository: String,
 ) {
     val downloadBytes: Long = files.sumOf { it.size }
-    val repository: String = "csukuangfj/sherpa-onnx-whisper-$id"
 }
 
 object OfflineSpeech {
@@ -41,6 +46,9 @@ object OfflineSpeech {
             id = "tiny",
             label = "Whisper Tiny",
             revision = "65176e2deb88badc814a94058666cadccc29b61c",
+            engine = SpeechEngine.WHISPER,
+            advantage = "Mais rápido",
+            repository = "csukuangfj/sherpa-onnx-whisper-tiny",
             files = listOf(
                 SpeechModelFile("tiny-encoder.int8.onnx", 12_937_772, "d24fb083ae3b1041fc24e97971d60e280c9342201fbb67b0ab428a8b4a51a434"),
                 SpeechModelFile("tiny-decoder.int8.onnx", 89_855_401, "d2fece8dd42771f1df975c6c0445770d0c292bf7547c2cae04a6c0cc57540925"),
@@ -51,7 +59,9 @@ object OfflineSpeech {
             id = "base",
             label = "Whisper Base",
             revision = "bb53ee204431c90d314c1cc08d28d23e5b7927cc",
-            recommended = true,
+            engine = SpeechEngine.WHISPER,
+            advantage = "Equilibrado",
+            repository = "csukuangfj/sherpa-onnx-whisper-base",
             files = listOf(
                 SpeechModelFile("base-encoder.int8.onnx", 29_120_534, "0b8fb1304b6109976038efff5ace81720e00386f3ff6b54ee8c75291ca0a1e11"),
                 SpeechModelFile("base-decoder.int8.onnx", 130_672_026, "9759d217388a01b3a4c7c15533201067b48ae819c4daafc8624e64b9409dc02d"),
@@ -62,10 +72,27 @@ object OfflineSpeech {
             id = "small",
             label = "Whisper Small",
             revision = "8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
+            engine = SpeechEngine.WHISPER,
+            advantage = "Mais acertos · Multilingue",
+            repository = "csukuangfj/sherpa-onnx-whisper-small",
             files = listOf(
                 SpeechModelFile("small-encoder.int8.onnx", 112_442_483, "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9"),
                 SpeechModelFile("small-decoder.int8.onnx", 262_226_114, "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee"),
                 SpeechModelFile("small-tokens.txt", 816_730, "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"),
+            ),
+        ),
+        SpeechModelOption(
+            id = "parakeet-v3",
+            label = "Parakeet TDT v3",
+            revision = "ed5d745623472f97cfc2e6c2916ee248798fc5a8",
+            engine = SpeechEngine.NEMO_TRANSDUCER,
+            advantage = "Pontuação e mais acertos",
+            repository = "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            files = listOf(
+                SpeechModelFile("encoder.int8.onnx", 652_282_294, "1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479"),
+                SpeechModelFile("decoder.int8.onnx", 11_845_274, "0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5"),
+                SpeechModelFile("joiner.int8.onnx", 6_355_277, "cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98"),
+                SpeechModelFile("tokens.txt", 93_939, "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"),
             ),
         ),
     )
@@ -73,6 +100,32 @@ object OfflineSpeech {
     private val lock = Any()
     private var recognizer: OfflineRecognizer? = null
     private var recognizerModelId: String? = null
+
+    // Ordem de preferência quando não há modelo selecionado: Base primeiro (recomendação
+    // histórica) e depois os restantes por ordem do catálogo.
+    private val fallbackOrder = listOf(DEFAULT_MODEL_ID, "tiny", "small", "parakeet-v3")
+
+    /**
+     * Recomenda um modelo pelo hardware: RAM decide se o Parakeet (671 MB) cabe com folga.
+     * O totalMem fica ~0,5 GiB abaixo da RAM anunciada (4 GB -> ~3,5 GiB, 6 GB -> ~5,5 GiB),
+     * por isso os limites de 3/5 GiB reproduzem os escalões comerciais.
+     */
+    fun recommendModelId(totalMemBytes: Long, lowRamDevice: Boolean): String {
+        val gigabyte = 1024L * 1024L * 1024L
+        return when {
+            lowRamDevice || totalMemBytes < 3L * gigabyte -> "tiny"
+            totalMemBytes < 5L * gigabyte -> "base"
+            else -> "parakeet-v3"
+        }
+    }
+
+    fun recommendedModelId(context: Context): String {
+        val activityManager = context.getSystemService(ActivityManager::class.java)
+            ?: return DEFAULT_MODEL_ID
+        val memory = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memory)
+        return recommendModelId(memory.totalMem, activityManager.isLowRamDevice)
+    }
 
     fun option(modelId: String): SpeechModelOption =
         models.firstOrNull { it.id == modelId }
@@ -103,9 +156,7 @@ object OfflineSpeech {
         if (stored != null && models.any { it.id == stored } && isModelInstalled(context, stored)) {
             return stored
         }
-        return listOf(DEFAULT_MODEL_ID, "tiny", "small").firstOrNull {
-            isModelInstalled(context, it)
-        }
+        return fallbackOrder.firstOrNull { isModelInstalled(context, it) }
     }
 
     fun selectModel(context: Context, modelId: String): Boolean {
@@ -127,7 +178,7 @@ object OfflineSpeech {
         val selected = context.getSharedPreferences("speech", Context.MODE_PRIVATE)
             .getString("selected_model", null)
         if (selected == modelId) {
-            val fallback = listOf(DEFAULT_MODEL_ID, "tiny", "small").firstOrNull {
+            val fallback = fallbackOrder.firstOrNull {
                 it != modelId && isModelInstalled(context, it)
             }
             context.getSharedPreferences("speech", Context.MODE_PRIVATE).edit().apply {
@@ -144,9 +195,6 @@ object OfflineSpeech {
             .edit().remove("selected_model").apply()
         return results.all { it }
     }
-
-    suspend fun installModel(context: Context, onProgress: (Long, Long) -> Unit) =
-        installModel(context, DEFAULT_MODEL_ID, onProgress)
 
     suspend fun installModel(
         context: Context,
@@ -282,17 +330,29 @@ object OfflineSpeech {
             val model = option(modelId)
             val dir = modelDirectory(context, modelId)
             val config = OfflineRecognizerConfig(
-                modelConfig = OfflineModelConfig(
-                    whisper = OfflineWhisperModelConfig(
-                        encoder = File(dir, model.files[0].name).absolutePath,
-                        decoder = File(dir, model.files[1].name).absolutePath,
-                        language = "",
-                        task = "transcribe",
-                    ),
-                    tokens = File(dir, model.files[2].name).absolutePath,
-                    numThreads = 2,
-                    modelType = "whisper",
-                )
+                modelConfig = when (model.engine) {
+                    SpeechEngine.WHISPER -> OfflineModelConfig(
+                        whisper = OfflineWhisperModelConfig(
+                            encoder = File(dir, model.files[0].name).absolutePath,
+                            decoder = File(dir, model.files[1].name).absolutePath,
+                            language = "",
+                            task = "transcribe",
+                        ),
+                        tokens = File(dir, model.files[2].name).absolutePath,
+                        numThreads = 2,
+                        modelType = "whisper",
+                    )
+                    SpeechEngine.NEMO_TRANSDUCER -> OfflineModelConfig(
+                        transducer = OfflineTransducerModelConfig(
+                            encoder = File(dir, model.files[0].name).absolutePath,
+                            decoder = File(dir, model.files[1].name).absolutePath,
+                            joiner = File(dir, model.files[2].name).absolutePath,
+                        ),
+                        tokens = File(dir, model.files[3].name).absolutePath,
+                        numThreads = 2,
+                        modelType = "nemo_transducer",
+                    )
+                }
             )
             recognizer = OfflineRecognizer(config = config)
             recognizerModelId = modelId

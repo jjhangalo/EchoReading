@@ -282,13 +282,20 @@ class SpeechProcessingService : Service() {
         val totalSamples = pcm.length() / 2L
         require(totalSamples > 0) { "transcribe_error_silent" }
         require(totalSamples <= MAX_SAMPLES) { "O áudio excede o limite de 30 minutos" }
-        val totalChunks = ((totalSamples + AudioDecoder.CHUNK_SAMPLES - 1) / AudioDecoder.CHUNK_SAMPLES).toInt()
+        val engine = OfflineSpeech.option(modelId).engine
+        val boundaries = AudioDecoder.chunkBoundaries(pcm, engine)
+        val totalChunks = boundaries.size - 1
         val transcript = StringBuilder(savedText.trim())
         var lastRejection: String? = null
 
         for (chunkIndex in startChunk until totalChunks) {
             currentCoroutineContext().ensureActive()
-            val samples = AudioDecoder.readChunk(pcm, chunkIndex)
+            val samples = AudioDecoder.readChunk(
+                pcm,
+                boundaries,
+                chunkIndex,
+                normalizeGain = engine == SpeechEngine.NEMO_TRANSDUCER,
+            )
             SpeechToTextState.publish(
                 this,
                 TranscriptionSnapshot(
@@ -297,7 +304,10 @@ class SpeechProcessingService : Service() {
                     modelId = modelId,
                     audioFileName = fileName,
                     audioDurationMs = durationMs,
-                    processedDurationMs = chunkIndex * 30_000L,
+                    processedDurationMs = minOf(
+                        durationMs,
+                        boundaries[chunkIndex] * 1000L / AudioDecoder.SAMPLE_RATE,
+                    ),
                     transcribedText = transcript.toString(),
                     progress = chunkIndex.toFloat() / totalChunks,
                     audioPath = audioPath,
@@ -326,7 +336,10 @@ class SpeechProcessingService : Service() {
                 }
             }
             val nextChunk = chunkIndex + 1
-            val processedMs = minOf(durationMs, nextChunk * 30_000L)
+            val processedMs = minOf(
+                durationMs,
+                boundaries[nextChunk] * 1000L / AudioDecoder.SAMPLE_RATE,
+            )
             saveCheckpoint(
                 KIND_TRANSCRIPTION,
                 jobId,
