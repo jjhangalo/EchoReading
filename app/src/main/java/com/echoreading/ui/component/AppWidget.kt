@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,8 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
@@ -255,21 +254,25 @@ fun QuickReaderPopupWidget(
                             }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            if (isPreparing) {
-                                CircularProgressIndicator(
-                                    color = colorScheme.onPrimary,
-                                    strokeWidth = 3.dp,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            } else {
-                                Icon(
-                                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) stringResource(R.string.pause_reading) else stringResource(
-                                        R.string.resume_reading
-                                    ),
-                                    tint = colorScheme.onPrimary,
-                                    modifier = Modifier.size(32.dp)
-                                )
+                            Crossfade(isPreparing, label = "play_preparing") { preparing ->
+                                if (preparing) {
+                                    CircularProgressIndicator(
+                                        color = colorScheme.onPrimary,
+                                        strokeWidth = 3.dp,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                } else {
+                                    PlayPauseIcon(
+                                        playing = isPlaying,
+                                        tint = colorScheme.onPrimary,
+                                        contentDescription = if (isPlaying) {
+                                            stringResource(R.string.pause_reading)
+                                        } else {
+                                            stringResource(R.string.resume_reading)
+                                        },
+                                        modifier = Modifier.size(32.dp),
+                                    )
+                                }
                             }
                         }
                     }

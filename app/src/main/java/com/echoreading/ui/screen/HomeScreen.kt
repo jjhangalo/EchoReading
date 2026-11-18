@@ -7,6 +7,16 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,8 +39,6 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Forward10
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Schedule
@@ -67,8 +75,10 @@ import com.echoreading.ui.component.AppBottomTipCard
 import com.echoreading.ui.component.AppTextAction
 import com.echoreading.ui.component.AppTextCard
 import com.echoreading.ui.component.AppTextStatPill
+import com.echoreading.ui.component.PlayPauseIcon
 import com.echoreading.ui.component.PlaybackProgressSection
 import com.echoreading.ui.component.SoundWave
+import com.echoreading.ui.component.rememberReducedMotion
 import com.echoreading.reader.MarkdownText
 import com.echoreading.reader.ReaderPlaybackService
 import com.echoreading.reader.ReaderState
@@ -282,14 +292,17 @@ fun ReaderHome() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            val statusActive = snapshot.status == ReadingStatus.PLAYING ||
+                                snapshot.status == ReadingStatus.PREPARING
+                            val statusDotColor by animateColorAsState(
+                                if (statusActive) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
+                                label = "status_dot_color",
+                            )
                             Box(
                                 Modifier
                                     .size(8.dp)
-                                    .background(
-                                        if (snapshot.status == ReadingStatus.PLAYING) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outline,
-                                        CircleShape
-                                    )
+                                    .background(statusDotColor, CircleShape)
                             )
                             Column {
                                 val readingLabel = when (snapshot.status) {
@@ -299,15 +312,29 @@ fun ReaderHome() {
                                     ReadingStatus.ERROR -> "ERRO NA LEITURA"
                                     ReadingStatus.IDLE -> "PRONTO PARA LER"
                                 }
-                                Text(
-                                    readingLabel,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.5.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                val reducedMotion = rememberReducedMotion()
+                                AnimatedContent(
+                                    targetState = readingLabel,
+                                    transitionSpec = {
+                                        if (reducedMotion) {
+                                            EnterTransition.None togetherWith ExitTransition.None
+                                        } else {
+                                            (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 2 })
+                                                .togetherWith(fadeOut(tween(160)))
+                                        }
+                                    },
+                                    label = "reading_status",
+                                ) { label ->
+                                    Text(
+                                        label,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.5.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 Text(
                                     "Reprodutor de Voz",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -476,19 +503,21 @@ fun ReaderHome() {
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    if (isPreparing) {
-                                        CircularProgressIndicator(
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            strokeWidth = 3.dp,
-                                            modifier = Modifier.size(30.dp)
-                                        )
-                                    } else {
-                                        Icon(
-                                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.size(36.dp)
-                                        )
+                                    Crossfade(isPreparing, label = "play_preparing") { preparing ->
+                                        if (preparing) {
+                                            CircularProgressIndicator(
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                strokeWidth = 3.dp,
+                                                modifier = Modifier.size(30.dp)
+                                            )
+                                        } else {
+                                            PlayPauseIcon(
+                                                playing = isPlaying,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                                                modifier = Modifier.size(36.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }
